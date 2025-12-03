@@ -68,10 +68,6 @@ export default function StoreListScreen({ navigation }: Props) {
     navigation.navigate('Dashboard', { storeId: store.id, storeName: store.name });
   };
 
-  const handleLogout = () => {
-    navigation.replace('Login');
-  };
-
   const renderStoreItem = ({ item }: { item: Store }) => (
     <TouchableOpacity
       style={styles.storeCard}
@@ -124,12 +120,6 @@ export default function StoreListScreen({ navigation }: Props) {
             <Text style={styles.greeting}>Welcome back! 👋</Text>
             <Text style={styles.subtitle}>Here's your business overview</Text>
           </View>
-          <TouchableOpacity
-            onPress={handleLogout}
-            style={styles.logoutButton}
-          >
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
         </View>
 
         <View style={styles.overviewCards}>
@@ -203,17 +193,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   subtitle: {
     fontSize: 15,
     color: colors.textSecondary,
-  },
-  logoutButton: {
-    backgroundColor: colors.error + '15',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  logoutText: {
-    color: colors.error,
-    fontSize: 14,
-    fontWeight: '600',
   },
   overviewCards: {
     flexDirection: 'row',

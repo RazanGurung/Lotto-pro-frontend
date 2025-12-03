@@ -173,12 +173,6 @@ const createStyles = (colors: any, colorScheme: 'light' | 'dark' | null | undefi
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  headerLeft: {
-    flex: 1,
-  },
-  headerRight: {
-    flexDirection: 'row',
-  },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',

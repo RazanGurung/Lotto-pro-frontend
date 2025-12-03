@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -29,64 +30,103 @@ export default function ProfileScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container}>
-        {/* Profile Header */}
-        <View style={styles.profileHeader}>
-          <View style={styles.avatarContainer}>
-            <Text style={styles.avatarText}>👤</Text>
-          </View>
-          <Text style={styles.userName}>Store Manager</Text>
-          <Text style={styles.storeName}>{storeName}</Text>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        {/* Header Title */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Settings</Text>
+          <Text style={styles.headerSubtitle}>{storeName}</Text>
         </View>
 
         {/* Menu Options */}
         <View style={styles.menuSection}>
           <Text style={styles.sectionTitle}>Account</Text>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <Text style={styles.menuIcon}>👤</Text>
+          <TouchableOpacity
+            style={styles.menuItem}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('EditProfile')}
+          >
+            <View style={styles.iconContainer}>
+              <Ionicons name="person-outline" size={22} color={colors.primary} />
+            </View>
             <Text style={styles.menuText}>Edit Profile</Text>
-            <Text style={styles.menuArrow}>›</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <Text style={styles.menuIcon}>🏪</Text>
+          <TouchableOpacity
+            style={styles.menuItem}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('StoreInformation')}
+          >
+            <View style={styles.iconContainer}>
+              <Ionicons name="storefront-outline" size={22} color={colors.primary} />
+            </View>
             <Text style={styles.menuText}>Store Information</Text>
-            <Text style={styles.menuArrow}>›</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <Text style={styles.menuIcon}>🔔</Text>
-            <Text style={styles.menuText}>Notifications</Text>
-            <Text style={styles.menuArrow}>›</Text>
+          <TouchableOpacity
+            style={styles.menuItem}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('NotificationSettings')}
+          >
+            <View style={styles.iconContainer}>
+              <Ionicons name="notifications-outline" size={22} color={colors.primary} />
+            </View>
+            <Text style={styles.menuText}>Notification Settings</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.menuSection}>
           <Text style={styles.sectionTitle}>Settings</Text>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <Text style={styles.menuIcon}>🌓</Text>
+          <TouchableOpacity
+            style={styles.menuItem}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('DarkMode')}
+          >
+            <View style={styles.iconContainer}>
+              <Ionicons name="moon-outline" size={22} color={colors.primary} />
+            </View>
             <Text style={styles.menuText}>Dark Mode</Text>
-            <Text style={styles.menuArrow}>›</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <Text style={styles.menuIcon}>🔒</Text>
+          <TouchableOpacity
+            style={styles.menuItem}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('PrivacySecurity')}
+          >
+            <View style={styles.iconContainer}>
+              <Ionicons name="shield-checkmark-outline" size={22} color={colors.primary} />
+            </View>
             <Text style={styles.menuText}>Privacy & Security</Text>
-            <Text style={styles.menuArrow}>›</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <Text style={styles.menuIcon}>❓</Text>
+          <TouchableOpacity
+            style={styles.menuItem}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('HelpSupport')}
+          >
+            <View style={styles.iconContainer}>
+              <Ionicons name="help-circle-outline" size={22} color={colors.primary} />
+            </View>
             <Text style={styles.menuText}>Help & Support</Text>
-            <Text style={styles.menuArrow}>›</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.menuSection}>
-          <TouchableOpacity style={[styles.menuItem, styles.logoutItem]} onPress={handleLogout}>
-            <Text style={styles.menuIcon}>🚪</Text>
+          <TouchableOpacity
+            style={[styles.menuItem, styles.logoutItem]}
+            onPress={handleLogout}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconContainer, styles.logoutIconContainer]}>
+              <Ionicons name="log-out-outline" size={22} color={colors.error} />
+            </View>
             <Text style={[styles.menuText, styles.logoutText]}>Logout</Text>
           </TouchableOpacity>
         </View>
@@ -107,72 +147,72 @@ const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
   },
-  profileHeader: {
-    alignItems: 'center',
-    paddingVertical: 30,
-    backgroundColor: colors.surface,
-    marginBottom: 20,
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 15,
+    backgroundColor: colors.background,
   },
-  avatarContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: colors.primary + '20',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  avatarText: {
-    fontSize: 48,
-  },
-  userName: {
-    fontSize: 24,
+  headerTitle: {
+    fontSize: 32,
     fontWeight: 'bold',
     color: colors.textPrimary,
-    marginBottom: 5,
+    marginBottom: 4,
   },
-  storeName: {
+  headerSubtitle: {
     fontSize: 16,
     color: colors.textSecondary,
   },
   menuSection: {
     backgroundColor: colors.surface,
-    marginBottom: 20,
+    marginBottom: 15,
+    marginHorizontal: 15,
+    borderRadius: 12,
     paddingHorizontal: 15,
+    elevation: 1,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: colors.textSecondary,
-    marginTop: 15,
-    marginBottom: 10,
+    marginTop: 20,
+    marginBottom: 12,
     marginLeft: 5,
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  menuIcon: {
-    fontSize: 22,
-    marginRight: 15,
-    width: 30,
+  iconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: colors.primary + '10',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
   menuText: {
     flex: 1,
     fontSize: 16,
     color: colors.textPrimary,
-  },
-  menuArrow: {
-    fontSize: 24,
-    color: colors.textMuted,
+    fontWeight: '500',
   },
   logoutItem: {
     borderBottomWidth: 0,
-    marginVertical: 10,
+    marginVertical: 8,
+  },
+  logoutIconContainer: {
+    backgroundColor: colors.error + '10',
   },
   logoutText: {
     color: colors.error,
@@ -181,6 +221,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   versionContainer: {
     alignItems: 'center',
     paddingVertical: 30,
+    paddingBottom: 40,
   },
   versionText: {
     fontSize: 12,
