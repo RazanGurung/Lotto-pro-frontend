@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, SafeAreaView, StatusBar } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
-import { Colors } from '../styles/colors';
+import { useTheme } from '../contexts/ThemeContext';
 
 type CreateStoreScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'CreateStore'>;
 
@@ -11,6 +11,9 @@ type Props = {
 };
 
 export default function CreateStoreScreen({ navigation }: Props) {
+  const colors = useTheme();
+  const styles = createStyles(colors);
+
   const [storeName, setStoreName] = useState('');
   const [location, setLocation] = useState('');
   const [lotteryAccountNumber, setLotteryAccountNumber] = useState('');
@@ -49,10 +52,20 @@ export default function CreateStoreScreen({ navigation }: Props) {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.formContainer}>
-        <Text style={styles.title}>Create New Store</Text>
-        <Text style={styles.subtitle}>Fill in the store details below</Text>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      {/* Custom Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Text style={styles.backButtonText}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Create Store</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      <ScrollView style={styles.scrollView}>
+        <View style={styles.formContainer}>
+          <Text style={styles.subtitle}>Fill in the store details below</Text>
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Store Name *</Text>
@@ -108,27 +121,55 @@ export default function CreateStoreScreen({ navigation }: Props) {
           <Text style={styles.cancelButtonText}>Cancel</Text>
         </TouchableOpacity>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 15,
+    backgroundColor: colors.background,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backButtonText: {
+    fontSize: 24,
+    color: colors.textPrimary,
+    fontWeight: '600',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  scrollView: {
+    flex: 1,
   },
   formContainer: {
     padding: 20,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: Colors.textPrimary,
-    marginBottom: 8,
-  },
   subtitle: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginBottom: 30,
   },
   inputGroup: {
@@ -137,42 +178,43 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 8,
   },
   input: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.surface,
     padding: 15,
     borderRadius: 8,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
+    color: colors.textPrimary,
   },
   divider: {
     height: 1,
-    backgroundColor: Colors.divider,
+    backgroundColor: colors.divider,
     marginVertical: 20,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 15,
   },
   createButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 10,
     elevation: 2,
-    shadowColor: Colors.black,
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
   createButtonText: {
-    color: Colors.textLight,
+    color: colors.textLight,
     fontSize: 18,
     fontWeight: 'bold',
   },
@@ -183,10 +225,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
     borderWidth: 2,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   cancelButtonText: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: 16,
     fontWeight: '600',
   },

@@ -1,8 +1,10 @@
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
+import { useTheme } from '../contexts/ThemeContext';
 
 type LotteryDetailScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'LotteryDetail'>;
 type LotteryDetailScreenRouteProp = RouteProp<RootStackParamList, 'LotteryDetail'>;
@@ -36,15 +38,18 @@ const generateTickets = (total: number, current: number): Ticket[] => {
 };
 
 export default function LotteryDetailScreen({ route, navigation }: Props) {
+  const colors = useTheme();
+  const styles = createStyles(colors);
   const { lottery } = route.params;
   const tickets = generateTickets(lottery.totalCount, lottery.currentCount);
   const soldCount = lottery.totalCount - lottery.currentCount;
   const soldRevenue = soldCount * lottery.price;
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Header Card */}
-      <View style={styles.headerCard}>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView style={styles.container}>
+        {/* Header Card */}
+        <View style={styles.headerCard}>
         <View style={styles.imageContainer}>
           <Text style={styles.lotteryImage}>{lottery.image}</Text>
         </View>
@@ -58,11 +63,11 @@ export default function LotteryDetailScreen({ route, navigation }: Props) {
             <Text style={styles.statLabel}>Total Tickets</Text>
           </View>
           <View style={[styles.statBox, styles.statBoxMiddle]}>
-            <Text style={[styles.statNumber, { color: '#4caf50' }]}>{lottery.currentCount}</Text>
+            <Text style={[styles.statNumber, { color: colors.available }]}>{lottery.currentCount}</Text>
             <Text style={styles.statLabel}>Available</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={[styles.statNumber, { color: '#f44336' }]}>{soldCount}</Text>
+            <Text style={[styles.statNumber, { color: colors.sold }]}>{soldCount}</Text>
             <Text style={styles.statLabel}>Sold</Text>
           </View>
         </View>
@@ -111,22 +116,26 @@ export default function LotteryDetailScreen({ route, navigation }: Props) {
         </View>
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   headerCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     padding: 20,
     alignItems: 'center',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -134,7 +143,7 @@ const styles = StyleSheet.create({
   imageContainer: {
     width: 120,
     height: 120,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: colors.backgroundDark,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
@@ -146,12 +155,12 @@ const styles = StyleSheet.create({
   lotteryName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textPrimary,
     marginBottom: 8,
   },
   lotteryPrice: {
     fontSize: 18,
-    color: '#6200ee',
+    color: colors.primary,
     fontWeight: '600',
     marginBottom: 20,
   },
@@ -167,20 +176,20 @@ const styles = StyleSheet.create({
   statBoxMiddle: {
     borderLeftWidth: 1,
     borderRightWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: colors.border,
   },
   statNumber: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#6200ee',
+    color: colors.primary,
   },
   statLabel: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
     marginTop: 4,
   },
   revenueContainer: {
-    backgroundColor: '#e8f5e9',
+    backgroundColor: colors.secondary + '20',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 12,
@@ -189,14 +198,14 @@ const styles = StyleSheet.create({
   },
   revenueLabel: {
     fontSize: 14,
-    color: '#2e7d32',
+    color: colors.secondary,
     fontWeight: '600',
     marginBottom: 4,
   },
   revenueAmount: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#2e7d32',
+    color: colors.secondary,
   },
   gridSection: {
     padding: 15,
@@ -204,33 +213,32 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textPrimary,
     marginBottom: 15,
   },
   legend: {
     flexDirection: 'row',
     justifyContent: 'center',
     marginBottom: 15,
-    gap: 30,
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    marginHorizontal: 15,
   },
   legendBox: {
     width: 20,
     height: 20,
     borderRadius: 4,
+    marginRight: 8,
   },
   legendText: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
   },
   ticketGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
     justifyContent: 'center',
   },
   ticket: {
@@ -240,23 +248,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
+    margin: 4,
   },
   ticketAvailable: {
-    backgroundColor: '#e3f2fd',
-    borderColor: '#2196f3',
+    backgroundColor: colors.available + '20',
+    borderColor: colors.available,
   },
   ticketSold: {
-    backgroundColor: '#c8e6c9',
-    borderColor: '#4caf50',
+    backgroundColor: colors.sold + '20',
+    borderColor: colors.sold,
   },
   ticketNumber: {
     fontSize: 14,
     fontWeight: 'bold',
   },
   ticketNumberAvailable: {
-    color: '#1976d2',
+    color: colors.available,
   },
   ticketNumberSold: {
-    color: '#388e3c',
+    color: colors.sold,
   },
 });

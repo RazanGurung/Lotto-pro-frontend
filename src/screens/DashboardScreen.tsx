@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Dimensions, TouchableOpacity, StatusBar, useColorScheme } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
-import { Colors } from '../styles/colors';
+import { useTheme } from '../contexts/ThemeContext';
 
 type DashboardScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
 type DashboardScreenRouteProp = RouteProp<RootStackParamList, 'Dashboard'>;
@@ -77,6 +78,9 @@ const MOCK_SCRATCH_OFF_LOTTERIES: ScratchOffLottery[] = [
 ];
 
 export default function DashboardScreen({ route, navigation }: Props) {
+  const colors = useTheme();
+  const colorScheme = useColorScheme();
+  const styles = createStyles(colors, colorScheme);
   const { storeName } = route.params;
 
   const handleLogout = () => {
@@ -116,23 +120,27 @@ export default function DashboardScreen({ route, navigation }: Props) {
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView>
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <View>
-              <Text style={styles.headerTitle}>{storeName}</Text>
-              <Text style={styles.headerSubtitle}>Scratch-Off Lottery Inventory</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.printButton}
-              onPress={() => navigation.navigate('PrintReport', { storeId: route.params.storeId, storeName })}
-            >
-              <Text style={styles.printButtonText}>📊 Report</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
 
+      {/* Fixed Header */}
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.headerTitle}>{storeName}</Text>
+            <Text style={styles.headerSubtitle}>Scratch-Off Lottery Inventory</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.printButton}
+            onPress={() => navigation.navigate('PrintReport', { storeId: route.params.storeId, storeName })}
+          >
+            <Text style={styles.printButtonText}>📊 Report</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Scrollable Content */}
+      <ScrollView>
         <View style={styles.gridContainer}>
           {MOCK_SCRATCH_OFF_LOTTERIES.map(renderLotteryCard)}
         </View>
@@ -146,17 +154,17 @@ export default function DashboardScreen({ route, navigation }: Props) {
         <Text style={styles.scanButtonText}>📷</Text>
         <Text style={styles.scanButtonLabel}>Scan</Text>
       </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any, colorScheme: 'light' | 'dark' | null | undefined) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   header: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colorScheme === 'dark' ? colors.background : colors.primary,
     padding: 20,
     paddingTop: 10,
   },
@@ -170,44 +178,45 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     flexDirection: 'row',
-    gap: 8,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.textLight,
+    color: colors.textLight,
     marginBottom: 5,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: Colors.textLight,
+    color: colors.textLight,
     opacity: 0.9,
   },
   printButton: {
-    backgroundColor: Colors.secondary,
-    width: 44,
-    height: 44,
+    backgroundColor: colors.secondary,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 2,
-    shadowColor: Colors.black,
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
   },
   printButtonText: {
-    fontSize: 20,
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.white,
   },
   logoutButton: {
-    backgroundColor: Colors.error,
+    backgroundColor: colors.error,
     width: 44,
     height: 44,
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 2,
-    shadowColor: Colors.black,
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
@@ -219,16 +228,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     padding: 8,
+    paddingBottom: 20,
     justifyContent: 'space-between',
   },
   lotteryCard: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.surface,
     borderRadius: 6,
     padding: 6,
     width: '23.5%',
     marginBottom: 8,
     elevation: 2,
-    shadowColor: Colors.black,
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -237,7 +247,7 @@ const styles = StyleSheet.create({
   imageContainer: {
     width: '100%',
     aspectRatio: 1,
-    backgroundColor: Colors.backgroundDark,
+    backgroundColor: colors.backgroundDark,
     borderRadius: 4,
     justifyContent: 'center',
     alignItems: 'center',
@@ -253,23 +263,22 @@ const styles = StyleSheet.create({
   lotteryName: {
     fontSize: 10,
     fontWeight: 'bold',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     textAlign: 'center',
     marginBottom: 2,
   },
   lotteryPrice: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: Colors.primary,
+    color: colors.primary,
     marginBottom: 3,
   },
   countContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
   },
   countBadge: {
-    backgroundColor: Colors.primaryLight + '20',
+    backgroundColor: colors.primaryLight + '20',
     paddingHorizontal: 4,
     paddingVertical: 1,
     borderRadius: 4,
@@ -277,32 +286,33 @@ const styles = StyleSheet.create({
   },
   countLabel: {
     fontSize: 7,
-    color: Colors.primary,
+    color: colors.primary,
     fontWeight: '500',
     textTransform: 'uppercase',
   },
   countNumber: {
     fontSize: 11,
-    color: Colors.primary,
+    color: colors.primary,
     fontWeight: 'bold',
   },
   countSeparator: {
     fontSize: 12,
-    color: Colors.textMuted,
+    color: colors.textMuted,
     fontWeight: 'bold',
+    marginHorizontal: 2,
   },
   scanButton: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 50,
     right: 20,
-    backgroundColor: Colors.accent,
+    backgroundColor: colors.accent,
     width: 70,
     height: 70,
     borderRadius: 35,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 6,
-    shadowColor: Colors.black,
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
     shadowRadius: 5,
@@ -313,7 +323,7 @@ const styles = StyleSheet.create({
   scanButtonLabel: {
     fontSize: 11,
     fontWeight: 'bold',
-    color: Colors.white,
+    color: colors.white,
     marginTop: 2,
   },
 });

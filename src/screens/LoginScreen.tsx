@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
-import { Colors } from '../styles/colors';
+import { useTheme } from '../contexts/ThemeContext';
+import { authService } from '../services/api';
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
@@ -11,98 +12,212 @@ type Props = {
 };
 
 export default function LoginScreen({ navigation }: Props) {
-  const [email, setEmail] = useState('');
+  const colors = useTheme();
+  const [emailOrPhone, setEmailOrPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const handleLogin = () => {
-    // For now, directly go to store list (owner view)
-    // Later: connect to backend API for authentication
-    navigation.replace('StoreList');
+  const styles = createStyles(colors);
+
+  const handleLogin = async () => {
+    if (!emailOrPhone.trim() || !password.trim()) {
+      Alert.alert('Validation Error', 'Please enter both email and password');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const result = await authService.login({
+        email: emailOrPhone.trim(),
+        password,
+      });
+
+      setLoading(false);
+
+      if (result.success) {
+        navigation.replace('MainTabs');
+      } else {
+        const errorMessage = result.error || 'Invalid email or password. Please try again.';
+        Alert.alert('Login Failed', errorMessage);
+      }
+    } catch (error: any) {
+      setLoading(false);
+      Alert.alert('Connection Error', 'Cannot connect to server. Please check your connection and try again.');
+    }
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Lottery Pro</Text>
-      <Text style={styles.subtitle}>Store Management System</Text>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.keyboardView}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.container}>
+          <Image
+            source={require('../../assets/logo/logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
+          <Text style={styles.title}>Lottery Pro</Text>
+          <Text style={styles.subtitle}>Store Management System</Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter your email"
+            placeholderTextColor={colors.textMuted}
+            value={emailOrPhone}
+            onChangeText={setEmailOrPhone}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            editable={!loading}
+          />
 
-      <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-        <Text style={styles.loginButtonText}>Login</Text>
+          <Text style={styles.label}>Password</Text>
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Enter your password"
+              placeholderTextColor={colors.textMuted}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              editable={!loading}
+            />
+            <TouchableOpacity
+              onPress={() => setShowPassword(!showPassword)}
+              style={styles.eyeButton}
+            >
+              <Text style={styles.eyeButtonText}>{showPassword ? 'Hide' : 'Show'}</Text>
+            </TouchableOpacity>
+          </View>
+
+      <TouchableOpacity
+        style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+        onPress={handleLogin}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color={colors.textLight} />
+        ) : (
+          <Text style={styles.loginButtonText}>Login</Text>
+        )}
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.forgotPassword} onPress={() => {}}>
         <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
       </TouchableOpacity>
 
-      <View style={styles.signupContainer}>
-        <Text style={styles.signupText}>Don't have an account? </Text>
-        <TouchableOpacity onPress={() => {}}>
-          <Text style={styles.signupLink}>Sign Up</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+          <View style={styles.signupContainer}>
+            <Text style={styles.signupText}>Don't have an account? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('SignUp')} disabled={loading}>
+              <Text style={styles.signupLink}>Sign Up</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
+  keyboardView: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  scrollContainer: {
+    flexGrow: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
     padding: 20,
-    justifyContent: 'center',
+    paddingTop: 60,
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    alignSelf: 'center',
+    marginBottom: 20,
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: Colors.primary,
+    color: colors.primary,
     textAlign: 'center',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: 50,
   },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+    marginBottom: 8,
+    marginLeft: 2,
+  },
   input: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.surface,
     padding: 15,
     borderRadius: 8,
     marginBottom: 15,
     fontSize: 16,
     borderWidth: 2,
-    borderColor: Colors.border,
+    borderColor: colors.border,
+    color: colors.textPrimary,
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    marginBottom: 15,
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  passwordInput: {
+    flex: 1,
+    padding: 15,
+    fontSize: 16,
+    color: colors.textPrimary,
+  },
+  eyeButton: {
+    paddingHorizontal: 15,
+    paddingVertical: 15,
+    justifyContent: 'center',
+  },
+  eyeButtonText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
   },
   loginButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     padding: 18,
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 10,
     elevation: 3,
-    shadowColor: Colors.black,
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
   },
+  loginButtonDisabled: {
+    opacity: 0.6,
+  },
   loginButtonText: {
-    color: Colors.textLight,
+    color: colors.textLight,
     fontSize: 18,
     fontWeight: 'bold',
   },
@@ -111,7 +226,7 @@ const styles = StyleSheet.create({
     marginTop: 15,
   },
   forgotPasswordText: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -121,11 +236,11 @@ const styles = StyleSheet.create({
     marginTop: 30,
   },
   signupText: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: 14,
   },
   signupLink: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 14,
     fontWeight: 'bold',
   },

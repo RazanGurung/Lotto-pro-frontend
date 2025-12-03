@@ -1,8 +1,8 @@
 import React from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView, StatusBar } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
-import { Colors } from '../styles/colors';
+import { useTheme } from '../contexts/ThemeContext';
 
 type StoreListScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'StoreList'>;
 
@@ -15,17 +15,55 @@ type Store = {
   name: string;
   address: string;
   activeTickets: number;
+  todaySales: number;
+  monthRevenue: number;
+  icon: string;
 };
 
 // Mock data - replace with API call
 const MOCK_STORES: Store[] = [
-  { id: '1', name: 'Downtown Store', address: '123 Main St, City', activeTickets: 5 },
-  { id: '2', name: 'Westside Store', address: '456 West Ave, City', activeTickets: 3 },
-  { id: '3', name: 'Eastside Store', address: '789 East Blvd, City', activeTickets: 4 },
-  { id: '4', name: 'North Branch', address: '321 North Rd, City', activeTickets: 6 },
+  {
+    id: '1',
+    name: 'Downtown Store',
+    address: '123 Main St, City',
+    activeTickets: 5,
+    todaySales: 24,
+    monthRevenue: 15420,
+    icon: '🏪'
+  },
+  {
+    id: '2',
+    name: 'Westside Store',
+    address: '456 West Ave, City',
+    activeTickets: 3,
+    todaySales: 18,
+    monthRevenue: 12350,
+    icon: '🏬'
+  },
+  {
+    id: '3',
+    name: 'Eastside Store',
+    address: '789 East Blvd, City',
+    activeTickets: 4,
+    todaySales: 31,
+    monthRevenue: 18900,
+    icon: '🏢'
+  },
+  {
+    id: '4',
+    name: 'North Branch',
+    address: '321 North Rd, City',
+    activeTickets: 6,
+    todaySales: 42,
+    monthRevenue: 21500,
+    icon: '🏛️'
+  },
 ];
 
 export default function StoreListScreen({ navigation }: Props) {
+  const colors = useTheme();
+  const styles = createStyles(colors);
+
   const handleStorePress = (store: Store) => {
     navigation.navigate('Dashboard', { storeId: store.id, storeName: store.name });
   };
@@ -38,154 +76,315 @@ export default function StoreListScreen({ navigation }: Props) {
     <TouchableOpacity
       style={styles.storeCard}
       onPress={() => handleStorePress(item)}
+      activeOpacity={0.7}
     >
-      <View style={styles.storeHeader}>
-        <Text style={styles.storeName}>{item.name}</Text>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{item.activeTickets} Active</Text>
+      <View style={styles.cardHeader}>
+        <View style={styles.storeIconContainer}>
+          <Text style={styles.storeIcon}>{item.icon}</Text>
+        </View>
+        <View style={styles.storeInfo}>
+          <Text style={styles.storeName}>{item.name}</Text>
+          <Text style={styles.storeAddress}>{item.address}</Text>
+        </View>
+        <View style={styles.arrowContainer}>
+          <Text style={styles.arrowText}>›</Text>
         </View>
       </View>
-      <Text style={styles.storeAddress}>{item.address}</Text>
-      <View style={styles.arrow}>
-        <Text style={styles.arrowText}>→</Text>
+
+      <View style={styles.statsContainer}>
+        <View style={styles.statBox}>
+          <Text style={styles.statValue}>${(item.monthRevenue / 1000).toFixed(1)}k</Text>
+          <Text style={styles.statLabel}>Month Revenue</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statBox}>
+          <Text style={styles.statValue}>{item.todaySales}</Text>
+          <Text style={styles.statLabel}>Today's Sales</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statBox}>
+          <View style={styles.activeBadge}>
+            <Text style={styles.activeBadgeText}>{item.activeTickets}</Text>
+          </View>
+          <Text style={styles.statLabel}>Active Types</Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
 
-  return (
-    <View style={styles.container}>
-      {/* Header with Logout */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Stores</Text>
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutText}>🚪 Logout</Text>
-        </TouchableOpacity>
-      </View>
+  const renderHeader = () => {
+    const totalStores = MOCK_STORES.length;
+    const totalRevenue = MOCK_STORES.reduce((sum, store) => sum + store.monthRevenue, 0);
+    const totalSales = MOCK_STORES.reduce((sum, store) => sum + store.todaySales, 0);
 
+    return (
+      <View style={styles.headerSection}>
+        <View style={styles.topBar}>
+          <View>
+            <Text style={styles.greeting}>Welcome back! 👋</Text>
+            <Text style={styles.subtitle}>Here's your business overview</Text>
+          </View>
+          <TouchableOpacity
+            onPress={handleLogout}
+            style={styles.logoutButton}
+          >
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.overviewCards}>
+          <View style={[styles.overviewCard, { backgroundColor: colors.primary + '15' }]}>
+            <Text style={styles.overviewValue}>{totalStores}</Text>
+            <Text style={styles.overviewLabel}>Total Stores</Text>
+          </View>
+          <View style={[styles.overviewCard, { backgroundColor: colors.secondary + '15' }]}>
+            <Text style={styles.overviewValue}>${(totalRevenue / 1000).toFixed(1)}k</Text>
+            <Text style={styles.overviewLabel}>Month Revenue</Text>
+          </View>
+          <View style={[styles.overviewCard, { backgroundColor: colors.accent + '15' }]}>
+            <Text style={styles.overviewValue}>{totalSales}</Text>
+            <Text style={styles.overviewLabel}>Today's Sales</Text>
+          </View>
+        </View>
+
+        <Text style={styles.storesTitle}>Your Stores</Text>
+      </View>
+    );
+  };
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyState}>
+      <Text style={styles.emptyIcon}>🏪</Text>
+      <Text style={styles.emptyTitle}>No Stores Yet</Text>
+      <Text style={styles.emptyText}>Create your first store to get started</Text>
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle={colors === useTheme() && colors.background === '#F5F5F5' ? 'dark-content' : 'light-content'} backgroundColor={colors.background} />
       <FlatList
         data={MOCK_STORES}
         renderItem={renderStoreItem}
         keyExtractor={(item) => item.id}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={renderEmptyState}
         contentContainerStyle={styles.listContainer}
+        showsVerticalScrollIndicator={false}
       />
-      <TouchableOpacity
-        style={styles.createButton}
-        onPress={() => navigation.navigate('CreateStore')}
-      >
-        <Text style={styles.createButtonText}>+ Create New Store</Text>
-      </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    elevation: 2,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.textPrimary,
-  },
-  logoutButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: Colors.backgroundDark,
-  },
-  logoutText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.textSecondary,
+    backgroundColor: colors.background,
   },
   listContainer: {
-    padding: 15,
     paddingBottom: 100,
   },
-  storeCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 12,
+  headerSection: {
     padding: 20,
-    marginBottom: 15,
-    elevation: 2,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.primary,
+    paddingTop: 10,
   },
-  storeHeader: {
+  topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+    alignItems: 'flex-start',
+    marginBottom: 20,
   },
-  storeName: {
-    fontSize: 20,
+  greeting: {
+    fontSize: 28,
     fontWeight: 'bold',
-    color: Colors.textPrimary,
-    flex: 1,
+    color: colors.textPrimary,
+    marginBottom: 5,
   },
-  badge: {
-    backgroundColor: Colors.success,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+  subtitle: {
+    fontSize: 15,
+    color: colors.textSecondary,
   },
-  badgeText: {
-    color: Colors.textLight,
-    fontSize: 12,
+  logoutButton: {
+    backgroundColor: colors.error + '15',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  logoutText: {
+    color: colors.error,
+    fontSize: 14,
     fontWeight: '600',
   },
-  storeAddress: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginBottom: 10,
+  overviewCards: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 25,
   },
-  arrow: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
+  overviewCard: {
+    flex: 1,
+    padding: 15,
+    borderRadius: 12,
+    marginHorizontal: 4,
+    alignItems: 'center',
+  },
+  overviewValue: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  overviewLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  storesTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    marginBottom: 5,
+  },
+  storeCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    elevation: 3,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  storeIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 12,
+    backgroundColor: colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  storeIcon: {
+    fontSize: 24,
+  },
+  storeInfo: {
+    flex: 1,
+  },
+  storeName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  storeAddress: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  arrowContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: colors.primary + '10',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   arrowText: {
     fontSize: 24,
-    color: Colors.primary,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    backgroundColor: colors.backgroundDark,
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+  },
+  statBox: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 18,
     fontWeight: 'bold',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  statDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: colors.border,
+  },
+  activeBadge: {
+    backgroundColor: colors.secondary,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 4,
+  },
+  activeBadgeText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
   createButton: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 35,
     left: 20,
     right: 20,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
+    flexDirection: 'row',
     padding: 18,
-    borderRadius: 12,
+    borderRadius: 16,
     alignItems: 'center',
-    elevation: 4,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  createButtonIcon: {
+    color: colors.textLight,
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginRight: 8,
   },
   createButtonText: {
-    color: Colors.textLight,
-    fontSize: 18,
+    color: colors.textLight,
+    fontSize: 17,
     fontWeight: 'bold',
   },
 });

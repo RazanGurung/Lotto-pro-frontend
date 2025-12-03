@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
-import { Colors } from '../styles/colors';
+import { useTheme } from '../contexts/ThemeContext';
 
 type PrintReportScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'PrintReport'>;
 type PrintReportScreenRouteProp = RouteProp<RootStackParamList, 'PrintReport'>;
@@ -14,6 +15,8 @@ type Props = {
 };
 
 export default function PrintReportScreen({ route }: Props) {
+  const colors = useTheme();
+  const styles = createStyles(colors);
   const { storeName } = route.params;
   const [selectedDate, setSelectedDate] = useState<'today' | 'yesterday' | 'custom'>('today');
 
@@ -55,10 +58,11 @@ export default function PrintReportScreen({ route }: Props) {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.title}>Generate Daily Report</Text>
-        <Text style={styles.storeName}>{storeName}</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.card}>
+          <Text style={styles.title}>Generate Daily Report</Text>
+          <Text style={styles.storeName}>{storeName}</Text>
 
         {/* Date Selection */}
         <View style={styles.dateSection}>
@@ -138,8 +142,11 @@ export default function PrintReportScreen({ route }: Props) {
             ))}
           </View>
         </View>
+      </View>
+    </ScrollView>
 
-        {/* Action Buttons */}
+      {/* Fixed Action Buttons */}
+      <View style={styles.buttonContainer}>
         <TouchableOpacity style={styles.printButton} onPress={handlePrintReport}>
           <Text style={styles.printButtonText}>🖨️ Generate & Print Report</Text>
         </TouchableOpacity>
@@ -148,22 +155,28 @@ export default function PrintReportScreen({ route }: Props) {
           <Text style={styles.exportButtonText}>📧 Email Report</Text>
         </TouchableOpacity>
       </View>
-    </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+  },
+  scrollContent: {
+    paddingBottom: 160,
   },
   card: {
     margin: 15,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 20,
     elevation: 2,
-    shadowColor: Colors.black,
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -171,12 +184,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 5,
   },
   storeName: {
     fontSize: 16,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginBottom: 30,
   },
   dateSection: {
@@ -185,7 +198,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 15,
   },
   dateOption: {
@@ -195,13 +208,13 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 8,
     borderWidth: 2,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     marginBottom: 10,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.surface,
   },
   dateOptionActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primaryLight + '10',
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight + '20',
   },
   dateOptionContent: {
     flex: 1,
@@ -209,29 +222,29 @@ const styles = StyleSheet.create({
   dateOptionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   dateOptionTitleActive: {
-    color: Colors.primary,
+    color: colors.primary,
   },
   dateOptionDate: {
     fontSize: 13,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   dateOptionDateActive: {
-    color: Colors.primary,
+    color: colors.primary,
   },
   checkmark: {
     fontSize: 20,
-    color: Colors.primary,
+    color: colors.primary,
     fontWeight: 'bold',
   },
   previewSection: {
     marginBottom: 20,
   },
   summaryCard: {
-    backgroundColor: Colors.backgroundDark,
+    backgroundColor: colors.backgroundDark,
     borderRadius: 8,
     padding: 15,
     marginBottom: 15,
@@ -244,27 +257,27 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 15,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   summaryValue: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   revenue: {
-    color: Colors.secondary,
+    color: colors.secondary,
   },
   detailsCard: {
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     borderRadius: 8,
     padding: 15,
   },
   detailsTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 12,
   },
   detailRow: {
@@ -273,56 +286,64 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
   detailName: {
     fontSize: 14,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     flex: 1,
   },
   detailStats: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 15,
   },
   detailSold: {
     fontSize: 13,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
+    marginRight: 15,
   },
   detailRevenue: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: Colors.secondary,
+    color: colors.secondary,
     minWidth: 60,
     textAlign: 'right',
   },
+  buttonContainer: {
+    position: 'absolute',
+    bottom: 15,
+    left: 0,
+    right: 0,
+    padding: 15,
+    backgroundColor: colors.background,
+  },
   printButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     padding: 18,
     borderRadius: 8,
     alignItems: 'center',
     marginBottom: 10,
     elevation: 2,
-    shadowColor: Colors.black,
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
   },
   printButtonText: {
-    color: Colors.textLight,
+    color: colors.textLight,
     fontSize: 16,
     fontWeight: 'bold',
   },
   exportButton: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.surface,
     padding: 18,
     borderRadius: 8,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
   },
   exportButtonText: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 16,
     fontWeight: 'bold',
   },
