@@ -106,10 +106,10 @@ export default function SignUpScreen({ navigation }: Props) {
       setLoading(false);
 
       if (result.success) {
-        Alert.alert('Success', 'Account created successfully! Redirecting to login...');
+        Alert.alert('Success', 'Account created successfully! Let\'s set up your preferences...');
         setTimeout(() => {
-          navigation.replace('Login');
-        }, 2000);
+          navigation.replace('ThemeSelection');
+        }, 1500);
       } else {
         Alert.alert('Registration Failed', result.error || 'Something went wrong. Please try again.');
       }

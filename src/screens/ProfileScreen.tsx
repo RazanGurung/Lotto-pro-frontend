@@ -76,6 +76,18 @@ export default function ProfileScreen({ route, navigation }: Props) {
             <Text style={styles.menuText}>Notification Settings</Text>
             <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.menuItem}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('PaymentManagement')}
+          >
+            <View style={styles.iconContainer}>
+              <Ionicons name="card-outline" size={22} color={colors.primary} />
+            </View>
+            <Text style={styles.menuText}>Payment Management</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.menuSection}>

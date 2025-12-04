@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
 import { authService } from '../services/api';
+
+const ONBOARDING_COMPLETE_KEY = '@onboarding_complete';
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
@@ -37,7 +40,15 @@ export default function LoginScreen({ navigation }: Props) {
       setLoading(false);
 
       if (result.success) {
-        navigation.replace('MainTabs');
+        // Check if user has completed onboarding
+        const onboardingComplete = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
+
+        if (onboardingComplete === 'true') {
+          navigation.replace('MainTabs');
+        } else {
+          // First time login - show theme selection
+          navigation.replace('ThemeSelection');
+        }
       } else {
         const errorMessage = result.error || 'Invalid email or password. Please try again.';
         Alert.alert('Login Failed', errorMessage);

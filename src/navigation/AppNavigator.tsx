@@ -25,6 +25,8 @@ import PrivacySecurityScreen from '../screens/PrivacySecurityScreen';
 import ChangePasswordScreen from '../screens/ChangePasswordScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import TermsOfServiceScreen from '../screens/TermsOfServiceScreen';
+import PaymentManagementScreen from '../screens/PaymentManagementScreen';
+import ThemeSelectionScreen from '../screens/ThemeSelectionScreen';
 import { lightTheme, darkTheme } from '../styles/colors';
 
 type ScratchOffLottery = {
@@ -39,6 +41,7 @@ type ScratchOffLottery = {
 export type RootStackParamList = {
   Login: undefined;
   SignUp: undefined;
+  ThemeSelection: undefined;
   MainTabs: undefined;
   StoreList: undefined;
   CreateStore: undefined;
@@ -56,6 +59,7 @@ export type RootStackParamList = {
   ChangePassword: undefined;
   PrivacyPolicy: undefined;
   TermsOfService: undefined;
+  PaymentManagement: undefined;
   Dashboard: {
     storeId: string;
     storeName: string;
@@ -86,7 +90,7 @@ function MainTabNavigator() {
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: true,
-        tabBarActiveTintColor: colors.white,
+        tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
           backgroundColor: colors.surface,
@@ -205,6 +209,10 @@ export default function AppNavigator() {
           component={SignUpScreen}
         />
         <Stack.Screen
+          name="ThemeSelection"
+          component={ThemeSelectionScreen}
+        />
+        <Stack.Screen
           name="MainTabs"
           component={MainTabNavigator}
         />
@@ -267,6 +275,10 @@ export default function AppNavigator() {
         <Stack.Screen
           name="TermsOfService"
           component={TermsOfServiceScreen}
+        />
+        <Stack.Screen
+          name="PaymentManagement"
+          component={PaymentManagementScreen}
         />
       </Stack.Navigator>
     </NavigationContainer>

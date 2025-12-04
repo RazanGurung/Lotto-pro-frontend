@@ -1,10 +1,11 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet, Dimensions, TouchableOpacity, StatusBar, useColorScheme } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, Dimensions, TouchableOpacity, StatusBar, useColorScheme, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
+import { Ionicons } from '@expo/vector-icons';
 
 type DashboardScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
 type DashboardScreenRouteProp = RouteProp<RootStackParamList, 'Dashboard'>;
@@ -82,6 +83,7 @@ export default function DashboardScreen({ route, navigation }: Props) {
   const colorScheme = useColorScheme();
   const styles = createStyles(colors, colorScheme);
   const { storeName } = route.params;
+  const [searchQuery, setSearchQuery] = useState('');
 
   const handleLogout = () => {
     navigation.reset({
@@ -90,30 +92,69 @@ export default function DashboardScreen({ route, navigation }: Props) {
     });
   };
 
+  const filteredLotteries = MOCK_SCRATCH_OFF_LOTTERIES.filter(lottery =>
+    lottery.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    lottery.price.toString().includes(searchQuery)
+  );
+
+  const getStockStatus = (current: number, total: number) => {
+    const percentage = (current / total) * 100;
+    if (percentage === 0) return { status: 'sold-out', color: colors.error, label: 'Sold Out' };
+    if (percentage <= 20) return { status: 'low', color: colors.warning, label: 'Low Stock' };
+    if (percentage <= 50) return { status: 'medium', color: colors.accentOrange, label: 'Medium' };
+    return { status: 'good', color: colors.success, label: 'In Stock' };
+  };
+
   const renderLotteryCard = (lottery: ScratchOffLottery) => {
+    const stockInfo = getStockStatus(lottery.currentCount, lottery.totalCount);
+    const stockPercentage = (lottery.currentCount / lottery.totalCount) * 100;
+
     return (
       <TouchableOpacity
         key={lottery.id}
         style={styles.lotteryCard}
         onPress={() => navigation.navigate('LotteryDetail', { lottery })}
+        activeOpacity={0.7}
       >
-        <View style={styles.imageContainer}>
-          <Text style={styles.lotteryImage}>{lottery.image}</Text>
+        {/* Status Indicator Dot */}
+        <View style={[styles.statusDot, { backgroundColor: stockInfo.color }]} />
+
+        {/* Icon */}
+        <View style={[styles.iconContainer, { backgroundColor: colors.primaryLight + '15' }]}>
+          <Ionicons name="ticket" size={32} color={colors.primary} />
         </View>
-        <View style={styles.lotteryInfo}>
-          <Text style={styles.lotteryName}>{lottery.name}</Text>
-          <Text style={styles.lotteryPrice}>${lottery.price}</Text>
-          <View style={styles.countContainer}>
-            <View style={styles.countBadge}>
-              <Text style={styles.countLabel}>Current</Text>
-              <Text style={styles.countNumber}>{lottery.currentCount}</Text>
-            </View>
-            <Text style={styles.countSeparator}>/</Text>
-            <View style={styles.countBadge}>
-              <Text style={styles.countLabel}>Total</Text>
-              <Text style={styles.countNumber}>{lottery.totalCount}</Text>
-            </View>
+
+        {/* Name */}
+        <Text style={styles.lotteryName} numberOfLines={2}>{lottery.name}</Text>
+
+        {/* Price */}
+        <Text style={styles.lotteryPrice}>${lottery.price.toFixed(2)}</Text>
+
+        {/* Progress Bar */}
+        <View style={styles.progressBarContainer}>
+          <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
+            <View
+              style={[
+                styles.progressBarFill,
+                {
+                  width: `${stockPercentage}%`,
+                  backgroundColor: stockInfo.color
+                }
+              ]}
+            />
           </View>
+        </View>
+
+        {/* Count */}
+        <View style={styles.countRow}>
+          <Text style={styles.countText}>
+            <Text style={styles.countCurrent}>{lottery.currentCount}</Text>
+            <Text style={styles.countSeparator}>/</Text>
+            <Text style={styles.countTotal}>{lottery.totalCount}</Text>
+          </Text>
+          <Text style={[styles.stockStatus, { color: stockInfo.color }]}>
+            {stockPercentage.toFixed(0)}%
+          </Text>
         </View>
       </TouchableOpacity>
     );
@@ -121,37 +162,91 @@ export default function DashboardScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <StatusBar
+        barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={colorScheme === 'dark' ? colors.background : colors.primary}
+      />
 
       {/* Fixed Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <View>
+          <View style={styles.headerLeft}>
             <Text style={styles.headerTitle}>{storeName}</Text>
-            <Text style={styles.headerSubtitle}>Scratch-Off Lottery Inventory</Text>
+            <Text style={styles.headerSubtitle}>Lottery Inventory Management</Text>
           </View>
           <TouchableOpacity
-            style={styles.printButton}
+            style={styles.reportButton}
             onPress={() => navigation.navigate('PrintReport', { storeId: route.params.storeId, storeName })}
           >
-            <Text style={styles.printButtonText}>📊 Report</Text>
+            <Ionicons name="bar-chart" size={20} color={colors.white} />
           </TouchableOpacity>
+        </View>
+
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color={colors.textMuted} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by name or price..."
+            placeholderTextColor={colors.textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+              <Ionicons name="close-circle" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Stats Summary */}
+        <View style={styles.statsContainer}>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{MOCK_SCRATCH_OFF_LOTTERIES.length}</Text>
+            <Text style={styles.statLabel}>Total Items</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{filteredLotteries.length}</Text>
+            <Text style={styles.statLabel}>Showing</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>
+              {MOCK_SCRATCH_OFF_LOTTERIES.filter(l => (l.currentCount / l.totalCount) <= 0.2).length}
+            </Text>
+            <Text style={styles.statLabel}>Low Stock</Text>
+          </View>
         </View>
       </View>
 
       {/* Scrollable Content */}
-      <ScrollView>
-        <View style={styles.gridContainer}>
-          {MOCK_SCRATCH_OFF_LOTTERIES.map(renderLotteryCard)}
-        </View>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {filteredLotteries.length > 0 ? (
+          <View style={styles.gridContainer}>
+            {filteredLotteries.map(renderLotteryCard)}
+          </View>
+        ) : (
+          <View style={styles.emptyState}>
+            <Ionicons name="search-outline" size={64} color={colors.textMuted} />
+            <Text style={styles.emptyStateTitle}>No Results Found</Text>
+            <Text style={styles.emptyStateText}>
+              Try adjusting your search terms
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
       {/* Fixed Floating Scan Button */}
       <TouchableOpacity
         style={styles.scanButton}
         onPress={() => navigation.navigate('ScanTicket', { storeId: route.params.storeId, storeName })}
+        activeOpacity={0.8}
       >
-        <Text style={styles.scanButtonText}>📷</Text>
+        <Ionicons name="scan" size={28} color={colors.white} />
         <Text style={styles.scanButtonLabel}>Scan</Text>
       </TouchableOpacity>
     </SafeAreaView>
@@ -164,160 +259,238 @@ const createStyles = (colors: any, colorScheme: 'light' | 'dark' | null | undefi
     backgroundColor: colors.background,
   },
   header: {
-    backgroundColor: colorScheme === 'dark' ? colors.background : colors.primary,
-    padding: 20,
-    paddingTop: 10,
+    backgroundColor: colorScheme === 'dark' ? colors.surface : colors.primary,
+    paddingHorizontal: 20,
+    paddingTop: 15,
+    paddingBottom: 20,
+    elevation: 4,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  headerLeft: {
+    flex: 1,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: colors.textLight,
-    marginBottom: 5,
+    color: colorScheme === 'dark' ? colors.textPrimary : colors.white,
+    marginBottom: 4,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: colors.textLight,
+    color: colorScheme === 'dark' ? colors.textSecondary : colors.white,
     opacity: 0.9,
   },
-  printButton: {
-    backgroundColor: colors.secondary,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-  },
-  printButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.white,
-  },
-  logoutButton: {
-    backgroundColor: colors.error,
+  reportButton: {
+    backgroundColor: colorScheme === 'dark' ? colors.primary : colors.secondary,
     width: 44,
     height: 44,
-    borderRadius: 8,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 2,
+    elevation: 3,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
-    shadowRadius: 3,
+    shadowRadius: 4,
   },
-  logoutButtonText: {
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colorScheme === 'dark' ? colors.background : colors.white + '20',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 16,
+    borderWidth: colorScheme === 'dark' ? 1 : 0,
+    borderColor: colors.border,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: colorScheme === 'dark' ? colors.textPrimary : colors.white,
+    padding: 0,
+  },
+  clearButton: {
+    padding: 4,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: colorScheme === 'dark' ? colors.background : colors.white + '15',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statNumber: {
     fontSize: 20,
+    fontWeight: 'bold',
+    color: colorScheme === 'dark' ? colors.textPrimary : colors.white,
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: colorScheme === 'dark' ? colors.textSecondary : colors.white,
+    opacity: 0.85,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+  statDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: colorScheme === 'dark' ? colors.border : colors.white + '30',
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    padding: 8,
-    paddingBottom: 20,
-    justifyContent: 'space-between',
+    padding: 12,
+    paddingBottom: 100,
+    gap: 12,
   },
   lotteryCard: {
     backgroundColor: colors.surface,
-    borderRadius: 6,
-    padding: 6,
-    width: '23.5%',
-    marginBottom: 8,
-    elevation: 2,
+    borderRadius: 16,
+    padding: 14,
+    width: '48%',
+    elevation: 3,
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    alignItems: 'center',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: colorScheme === 'dark' ? colors.border : colors.border + '40',
+    position: 'relative',
   },
-  imageContainer: {
+  iconContainer: {
     width: '100%',
     aspectRatio: 1,
-    backgroundColor: colors.backgroundDark,
-    borderRadius: 4,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 10,
   },
-  lotteryImage: {
-    fontSize: 24,
-  },
-  lotteryInfo: {
-    width: '100%',
-    alignItems: 'center',
+  statusDot: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: colors.surface,
+    zIndex: 10,
   },
   lotteryName: {
-    fontSize: 10,
-    fontWeight: 'bold',
+    fontSize: 14,
+    fontWeight: '700',
     color: colors.textPrimary,
-    textAlign: 'center',
-    marginBottom: 2,
+    lineHeight: 18,
+    marginBottom: 6,
+    minHeight: 36,
   },
   lotteryPrice: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.primary,
+    marginBottom: 8,
+  },
+  progressBarContainer: {
+    marginBottom: 8,
+  },
+  progressBarBg: {
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  countRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  countText: {
+    fontSize: 13,
+  },
+  countCurrent: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: colors.primary,
-    marginBottom: 3,
-  },
-  countContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  countBadge: {
-    backgroundColor: colors.primaryLight + '20',
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 4,
-    alignItems: 'center',
-  },
-  countLabel: {
-    fontSize: 7,
-    color: colors.primary,
-    fontWeight: '500',
-    textTransform: 'uppercase',
-  },
-  countNumber: {
-    fontSize: 11,
-    color: colors.primary,
-    fontWeight: 'bold',
+    color: colors.textPrimary,
   },
   countSeparator: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.textMuted,
+    fontWeight: '600',
+  },
+  countTotal: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  stockStatus: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 80,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
-    marginHorizontal: 2,
+    color: colors.textPrimary,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
   scanButton: {
     position: 'absolute',
-    bottom: 50,
+    bottom: 30,
     right: 20,
     backgroundColor: colors.accent,
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 6,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-  },
-  scanButtonText: {
-    fontSize: 28,
+    elevation: 8,
+    shadowColor: colors.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
   },
   scanButtonLabel: {
-    fontSize: 11,
-    fontWeight: 'bold',
+    fontSize: 10,
+    fontWeight: '700',
     color: colors.white,
     marginTop: 2,
+    textTransform: 'uppercase',
   },
 });
