@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
 import { authService } from '../services/api';
+import { Ionicons } from '@expo/vector-icons';
 
 const ONBOARDING_COMPLETE_KEY = '@onboarding_complete';
 const AUTH_TOKEN_KEY = '@auth_token';
@@ -22,6 +23,7 @@ export default function LoginScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
   const styles = createStyles(colors);
 
@@ -42,13 +44,61 @@ export default function LoginScreen({ navigation }: Props) {
       setLoading(false);
 
       if (result.success) {
+        console.log('=== LOGIN SUCCESS ===');
+        console.log('Full result keys:', Object.keys(result));
+        console.log('Full result:', JSON.stringify(result, null, 2));
+        console.log('result.message:', result.message);
+        console.log('result.data?.message:', result.data?.message);
+        console.log('result.msg:', result.msg);
+        console.log('result.data?.msg:', result.data?.msg);
+
         // Store authentication token and user data
         if (result.data?.token) {
           await AsyncStorage.setItem(AUTH_TOKEN_KEY, result.data.token);
         }
         if (result.data?.user) {
           await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(result.data.user));
+          console.log('User data:', JSON.stringify(result.data.user, null, 2));
+          console.log('User role:', result.data.user.role);
+          console.log('User type:', result.data.user.type);
+          console.log('User user_type:', result.data.user.user_type);
         }
+
+        // Determine user type based on success message or user data
+        const successMessage = result.message || result.data?.message || result.msg || result.data?.msg || '';
+        const userRole = result.data?.user?.role || result.data?.user?.type || result.data?.user?.user_type || '';
+        let userType = 'store'; // default
+
+        console.log('Checking message:', successMessage);
+        console.log('Checking user role:', userRole);
+
+        // First check user role/type in user data
+        if (userRole) {
+          if (userRole === 'superadmin' || userRole === 'super_admin' || userRole === 'admin') {
+            userType = 'superadmin';
+            console.log('✅ Detected SUPERADMIN from user data');
+          } else if (userRole === 'store_owner' || userRole === 'owner') {
+            userType = 'store_owner';
+            console.log('✅ Detected STORE OWNER from user data');
+          } else if (userRole === 'store') {
+            userType = 'store';
+            console.log('✅ Detected STORE from user data');
+          }
+        }
+        // Fallback to message checking
+        else if (successMessage.includes('Super admin login successful') || successMessage.includes('Superadmin login successful')) {
+          userType = 'superadmin';
+          console.log('✅ Detected SUPERADMIN from message');
+        } else if (successMessage.includes('Store Owner login successful') || successMessage.includes('Store owner login successful')) {
+          userType = 'store_owner';
+          console.log('✅ Detected STORE OWNER from message');
+        } else {
+          console.log('⚠️ Defaulting to STORE user');
+        }
+
+        await AsyncStorage.setItem('@user_type', userType);
+        console.log('Final userType saved:', userType);
+        console.log('===================');
 
         // Check if user has completed onboarding
         const onboardingComplete = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
@@ -90,7 +140,7 @@ export default function LoginScreen({ navigation }: Props) {
 
           <Text style={styles.label}>Email</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, focusedInput === 'email' && styles.inputFocused]}
             placeholder="Enter your email"
             placeholderTextColor={colors.textMuted}
             value={emailOrPhone}
@@ -98,10 +148,12 @@ export default function LoginScreen({ navigation }: Props) {
             keyboardType="email-address"
             autoCapitalize="none"
             editable={!loading}
+            onFocus={() => setFocusedInput('email')}
+            onBlur={() => setFocusedInput(null)}
           />
 
           <Text style={styles.label}>Password</Text>
-          <View style={styles.passwordContainer}>
+          <View style={[styles.passwordContainer, focusedInput === 'password' && styles.inputFocused]}>
             <TextInput
               style={styles.passwordInput}
               placeholder="Enter your password"
@@ -110,12 +162,18 @@ export default function LoginScreen({ navigation }: Props) {
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
               editable={!loading}
+              onFocus={() => setFocusedInput('password')}
+              onBlur={() => setFocusedInput(null)}
             />
             <TouchableOpacity
               onPress={() => setShowPassword(!showPassword)}
               style={styles.eyeButton}
             >
-              <Text style={styles.eyeButtonText}>{showPassword ? 'Hide' : 'Show'}</Text>
+              <Ionicons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={22}
+                color={colors.primary}
+              />
             </TouchableOpacity>
           </View>
 
@@ -154,6 +212,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
+    paddingBottom: 40,
   },
   container: {
     flex: 1,
@@ -162,10 +221,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingTop: 60,
   },
   logo: {
-    width: 120,
-    height: 120,
+    width: 100,
+    height: 100,
     alignSelf: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   title: {
     fontSize: 32,
@@ -178,32 +237,36 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     color: colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 50,
+    marginBottom: 40,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.textSecondary,
     marginBottom: 8,
     marginLeft: 2,
   },
   input: {
     backgroundColor: colors.surface,
     padding: 15,
-    borderRadius: 8,
-    marginBottom: 15,
+    borderRadius: 10,
+    marginBottom: 12,
     fontSize: 16,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: colors.border,
     color: colors.textPrimary,
+  },
+  inputFocused: {
+    borderColor: colors.primary,
+    borderWidth: 1.5,
   },
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderRadius: 8,
-    marginBottom: 15,
-    borderWidth: 2,
+    borderRadius: 10,
+    marginBottom: 12,
+    borderWidth: 1,
     borderColor: colors.border,
   },
   passwordInput: {
@@ -216,18 +279,14 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 15,
     justifyContent: 'center',
-  },
-  eyeButtonText: {
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: '600',
+    alignItems: 'center',
   },
   loginButton: {
     backgroundColor: colors.primary,
     padding: 18,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 16,
     elevation: 3,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
@@ -254,7 +313,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   signupContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 30,
+    marginTop: 24,
   },
   signupText: {
     color: colors.textSecondary,

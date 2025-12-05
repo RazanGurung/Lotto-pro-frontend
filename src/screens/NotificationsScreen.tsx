@@ -175,7 +175,7 @@ export default function NotificationsScreen({ navigation }: Props) {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
@@ -351,6 +351,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   listContainer: {
     padding: 15,
     paddingTop: 5,
+    paddingBottom: 20,
   },
   notificationCard: {
     flexDirection: 'row',

@@ -4,6 +4,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
 import { authService } from '../services/api';
+import { Ionicons } from '@expo/vector-icons';
 
 type SignUpScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'SignUp'>;
 
@@ -21,6 +22,7 @@ export default function SignUpScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
   const styles = createStyles(colors);
 
@@ -140,72 +142,95 @@ export default function SignUpScreen({ navigation }: Props) {
 
         <Text style={styles.label}>Full Name</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, focusedInput === 'name' && styles.inputFocused]}
           placeholder="Enter your full name"
+          placeholderTextColor={colors.textMuted}
           value={name}
           onChangeText={setName}
           autoCapitalize="words"
           editable={!loading}
+          onFocus={() => setFocusedInput('name')}
+          onBlur={() => setFocusedInput(null)}
         />
 
         <Text style={styles.label}>Email</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, focusedInput === 'email' && styles.inputFocused]}
           placeholder="Enter your email"
+          placeholderTextColor={colors.textMuted}
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
           autoCapitalize="none"
           editable={!loading}
+          onFocus={() => setFocusedInput('email')}
+          onBlur={() => setFocusedInput(null)}
         />
 
         <Text style={styles.label}>Phone Number</Text>
-        <View style={styles.phoneContainer}>
+        <View style={[styles.phoneContainer, focusedInput === 'phone' && styles.inputFocused]}>
           <Text style={styles.flagEmoji}>🇺🇸</Text>
           <TextInput
             style={styles.phoneInput}
             placeholder="XXX-XXX-XXXX"
+            placeholderTextColor={colors.textMuted}
             value={phone}
             onChangeText={handlePhoneChange}
             keyboardType="phone-pad"
             maxLength={12}
             editable={!loading}
+            onFocus={() => setFocusedInput('phone')}
+            onBlur={() => setFocusedInput(null)}
           />
         </View>
 
         <Text style={styles.label}>Password</Text>
-        <View style={styles.passwordContainer}>
+        <View style={[styles.passwordContainer, focusedInput === 'password' && styles.inputFocused]}>
           <TextInput
             style={styles.passwordInput}
             placeholder="Enter your password (min 6 characters)"
+            placeholderTextColor={colors.textMuted}
             value={password}
             onChangeText={setPassword}
             secureTextEntry={!showPassword}
             editable={!loading}
+            onFocus={() => setFocusedInput('password')}
+            onBlur={() => setFocusedInput(null)}
           />
           <TouchableOpacity
             onPress={() => setShowPassword(!showPassword)}
             style={styles.eyeButton}
           >
-            <Text style={styles.eyeButtonText}>{showPassword ? 'Hide' : 'Show'}</Text>
+            <Ionicons
+              name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={22}
+              color={colors.primary}
+            />
           </TouchableOpacity>
         </View>
 
         <Text style={styles.label}>Confirm Password</Text>
-        <View style={styles.passwordContainer}>
+        <View style={[styles.passwordContainer, focusedInput === 'confirmPassword' && styles.inputFocused]}>
           <TextInput
             style={styles.passwordInput}
             placeholder="Re-enter your password"
+            placeholderTextColor={colors.textMuted}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry={!showConfirmPassword}
             editable={!loading}
+            onFocus={() => setFocusedInput('confirmPassword')}
+            onBlur={() => setFocusedInput(null)}
           />
           <TouchableOpacity
             onPress={() => setShowConfirmPassword(!showConfirmPassword)}
             style={styles.eyeButton}
           >
-            <Text style={styles.eyeButtonText}>{showConfirmPassword ? 'Hide' : 'Show'}</Text>
+            <Ionicons
+              name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={22}
+              color={colors.primary}
+            />
           </TouchableOpacity>
         </View>
 
@@ -240,6 +265,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
+    paddingBottom: 40,
   },
   container: {
     flex: 1,
@@ -248,10 +274,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingTop: 60,
   },
   logo: {
-    width: 120,
-    height: 120,
+    width: 100,
+    height: 100,
     alignSelf: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   title: {
     fontSize: 32,
@@ -264,32 +290,36 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     color: colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 40,
+    marginBottom: 32,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.textSecondary,
     marginBottom: 8,
     marginLeft: 2,
   },
   input: {
     backgroundColor: colors.surface,
     padding: 15,
-    borderRadius: 8,
-    marginBottom: 15,
+    borderRadius: 10,
+    marginBottom: 12,
     fontSize: 16,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: colors.border,
     color: colors.textPrimary,
+  },
+  inputFocused: {
+    borderColor: colors.primary,
+    borderWidth: 1.5,
   },
   phoneContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderRadius: 8,
-    marginBottom: 15,
-    borderWidth: 2,
+    borderRadius: 10,
+    marginBottom: 12,
+    borderWidth: 1,
     borderColor: colors.border,
     paddingLeft: 15,
   },
@@ -307,9 +337,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderRadius: 8,
-    marginBottom: 15,
-    borderWidth: 2,
+    borderRadius: 10,
+    marginBottom: 12,
+    borderWidth: 1,
     borderColor: colors.border,
   },
   passwordInput: {
@@ -322,18 +352,14 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 15,
     justifyContent: 'center',
-  },
-  eyeButtonText: {
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: '600',
+    alignItems: 'center',
   },
   signUpButton: {
     backgroundColor: colors.primary,
     padding: 18,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 16,
     elevation: 3,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
@@ -351,7 +377,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   loginContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 30,
+    marginTop: 24,
   },
   loginText: {
     color: colors.textSecondary,

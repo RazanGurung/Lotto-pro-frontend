@@ -29,7 +29,7 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
   const [quietHours, setQuietHours] = useState(false);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
@@ -38,7 +38,11 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         {/* Delivery Methods */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Delivery Methods</Text>
@@ -223,8 +227,6 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
             </TouchableOpacity>
           )}
         </View>
-
-        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -258,6 +260,9 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   container: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 20,
   },
   section: {
     marginTop: 20,

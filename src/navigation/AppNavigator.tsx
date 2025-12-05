@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useColorScheme, Text, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import LoginScreen from '../screens/LoginScreen';
 import SignUpScreen from '../screens/SignUpScreen';
 import StoreListScreen from '../screens/StoreListScreen';
@@ -27,6 +28,10 @@ import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import TermsOfServiceScreen from '../screens/TermsOfServiceScreen';
 import PaymentManagementScreen from '../screens/PaymentManagementScreen';
 import ThemeSelectionScreen from '../screens/ThemeSelectionScreen';
+import LotteryOrganizationListScreen from '../screens/LotteryOrganizationListScreen';
+import LotteryOrganizationDashboardScreen from '../screens/LotteryOrganizationDashboardScreen';
+import AddLotteryGameScreen from '../screens/AddLotteryGameScreen';
+import LotteryGameDetailScreen from '../screens/LotteryGameDetailScreen';
 import { lightTheme, darkTheme } from '../styles/colors';
 
 type ScratchOffLottery = {
@@ -60,6 +65,31 @@ export type RootStackParamList = {
   PrivacyPolicy: undefined;
   TermsOfService: undefined;
   PaymentManagement: undefined;
+  LotteryOrganizationList: undefined;
+  LotteryOrganizationDashboard: {
+    organizationId: string;
+    organizationName: string;
+    state: string;
+  };
+  AddLotteryGame: {
+    state: string;
+    organizationName: string;
+  };
+  LotteryGameDetail: {
+    game: {
+      id: string;
+      name: string;
+      price: number;
+      topPrize: string;
+      odds: string;
+      available: boolean;
+      launchDate: string;
+      gameNumber: string;
+      startNumber?: string;
+      endNumber?: string;
+      imageUrl?: string;
+    };
+  };
   Dashboard: {
     storeId: string;
     storeName: string;
@@ -84,6 +114,27 @@ function MainTabNavigator() {
   const colorScheme = useColorScheme();
   const colors = colorScheme === 'dark' ? darkTheme : lightTheme;
   const unreadCount = 3; // Mock unread count - replace with actual data from context/state
+  const [userType, setUserType] = useState<string | null>(null);
+
+  useEffect(() => {
+    const getUserType = async () => {
+      const type = await AsyncStorage.getItem('@user_type');
+      console.log('=== TAB NAVIGATOR ===');
+      console.log('User type from storage:', type);
+      setUserType(type || 'store_owner');
+      console.log('Using userType:', type || 'store_owner');
+      console.log('Is SuperAdmin?', type === 'superadmin');
+      console.log('====================');
+    };
+    getUserType();
+  }, []);
+
+  // Show loading or default while determining user type
+  if (!userType) {
+    return null;
+  }
+
+  const isSuperAdmin = userType === 'superadmin';
 
   return (
     <Tab.Navigator
@@ -117,73 +168,135 @@ function MainTabNavigator() {
         },
       }}
     >
-      <Tab.Screen
-        name="StoreList"
-        component={StoreListScreen}
-        options={{
-          tabBarLabel: 'Stores',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'storefront' : 'storefront-outline'}
-              size={22}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="CreateStore"
-        component={CreateStoreScreen}
-        options={{
-          tabBarLabel: 'Add Store',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'add-circle' : 'add-circle-outline'}
-              size={22}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="NotificationsTab"
-        component={NotificationsTabScreen}
-        options={{
-          tabBarLabel: 'Alerts',
-          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: colors.error,
-            color: colors.white,
-            fontSize: 10,
-            fontWeight: 'bold',
-            minWidth: 18,
-            height: 18,
-            borderRadius: 9,
-            lineHeight: 18,
-          },
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'notifications' : 'notifications-outline'}
-              size={22}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Profile"
-        component={ProfileScreen}
-        options={{
-          tabBarLabel: 'Settings',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'settings' : 'settings-outline'}
-              size={22}
-              color={color}
-            />
-          ),
-        }}
-      />
+      {isSuperAdmin ? (
+        // Super Admin Tabs
+        <>
+          <Tab.Screen
+            name="LotteryOrganizationList"
+            component={LotteryOrganizationListScreen}
+            options={{
+              tabBarLabel: 'Lotteries',
+              tabBarIcon: ({ color, focused }) => (
+                <Ionicons
+                  name={focused ? 'business' : 'business-outline'}
+                  size={22}
+                  color={color}
+                />
+              ),
+            }}
+          />
+          <Tab.Screen
+            name="NotificationsTab"
+            component={NotificationsTabScreen}
+            options={{
+              tabBarLabel: 'Alerts',
+              tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+              tabBarBadgeStyle: {
+                backgroundColor: colors.error,
+                color: colors.white,
+                fontSize: 10,
+                fontWeight: 'bold',
+                minWidth: 18,
+                height: 18,
+                borderRadius: 9,
+                lineHeight: 18,
+              },
+              tabBarIcon: ({ color, focused }) => (
+                <Ionicons
+                  name={focused ? 'notifications' : 'notifications-outline'}
+                  size={22}
+                  color={color}
+                />
+              ),
+            }}
+          />
+          <Tab.Screen
+            name="Profile"
+            component={ProfileScreen}
+            options={{
+              tabBarLabel: 'Settings',
+              tabBarIcon: ({ color, focused }) => (
+                <Ionicons
+                  name={focused ? 'settings' : 'settings-outline'}
+                  size={22}
+                  color={color}
+                />
+              ),
+            }}
+          />
+        </>
+      ) : (
+        // Store Owner / Store Tabs
+        <>
+          <Tab.Screen
+            name="StoreList"
+            component={StoreListScreen}
+            options={{
+              tabBarLabel: 'Stores',
+              tabBarIcon: ({ color, focused }) => (
+                <Ionicons
+                  name={focused ? 'storefront' : 'storefront-outline'}
+                  size={22}
+                  color={color}
+                />
+              ),
+            }}
+          />
+          <Tab.Screen
+            name="CreateStore"
+            component={CreateStoreScreen}
+            options={{
+              tabBarLabel: 'Add Store',
+              tabBarIcon: ({ color, focused }) => (
+                <Ionicons
+                  name={focused ? 'add-circle' : 'add-circle-outline'}
+                  size={22}
+                  color={color}
+                />
+              ),
+            }}
+          />
+          <Tab.Screen
+            name="NotificationsTab"
+            component={NotificationsTabScreen}
+            options={{
+              tabBarLabel: 'Alerts',
+              tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+              tabBarBadgeStyle: {
+                backgroundColor: colors.error,
+                color: colors.white,
+                fontSize: 10,
+                fontWeight: 'bold',
+                minWidth: 18,
+                height: 18,
+                borderRadius: 9,
+                lineHeight: 18,
+              },
+              tabBarIcon: ({ color, focused }) => (
+                <Ionicons
+                  name={focused ? 'notifications' : 'notifications-outline'}
+                  size={22}
+                  color={color}
+                />
+              ),
+            }}
+          />
+          <Tab.Screen
+            name="Profile"
+            component={ProfileScreen}
+            options={{
+              tabBarLabel: 'Settings',
+              tabBarIcon: ({ color, focused }) => (
+                <Ionicons
+                  name={focused ? 'settings' : 'settings-outline'}
+                  size={22}
+                  color={color}
+                />
+              ),
+            }}
+          />
+        </>
+      )}
     </Tab.Navigator>
   );
 }
@@ -279,6 +392,22 @@ export default function AppNavigator() {
         <Stack.Screen
           name="PaymentManagement"
           component={PaymentManagementScreen}
+        />
+        <Stack.Screen
+          name="LotteryOrganizationList"
+          component={LotteryOrganizationListScreen}
+        />
+        <Stack.Screen
+          name="LotteryOrganizationDashboard"
+          component={LotteryOrganizationDashboardScreen}
+        />
+        <Stack.Screen
+          name="AddLotteryGame"
+          component={AddLotteryGameScreen}
+        />
+        <Stack.Screen
+          name="LotteryGameDetail"
+          component={LotteryGameDetailScreen}
         />
       </Stack.Navigator>
     </NavigationContainer>

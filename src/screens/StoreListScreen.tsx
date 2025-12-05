@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView, StatusBar } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ScrollView, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
@@ -124,16 +125,16 @@ export default function StoreListScreen({ navigation }: Props) {
 
         <View style={styles.overviewCards}>
           <View style={[styles.overviewCard, { backgroundColor: colors.primary + '15' }]}>
-            <Text style={styles.overviewValue}>{totalStores}</Text>
-            <Text style={styles.overviewLabel}>Total Stores</Text>
+            <Text style={styles.overviewValue} adjustsFontSizeToFit numberOfLines={1}>{totalStores}</Text>
+            <Text style={styles.overviewLabel} adjustsFontSizeToFit numberOfLines={2}>Total Stores</Text>
           </View>
           <View style={[styles.overviewCard, { backgroundColor: colors.secondary + '15' }]}>
-            <Text style={styles.overviewValue}>${(totalRevenue / 1000).toFixed(1)}k</Text>
-            <Text style={styles.overviewLabel}>Month Revenue</Text>
+            <Text style={styles.overviewValue} adjustsFontSizeToFit numberOfLines={1}>${(totalRevenue / 1000).toFixed(1)}k</Text>
+            <Text style={styles.overviewLabel} adjustsFontSizeToFit numberOfLines={2}>Month Revenue</Text>
           </View>
           <View style={[styles.overviewCard, { backgroundColor: colors.accent + '15' }]}>
-            <Text style={styles.overviewValue}>{totalSales}</Text>
-            <Text style={styles.overviewLabel}>Today's Sales</Text>
+            <Text style={styles.overviewValue} adjustsFontSizeToFit numberOfLines={1}>{totalSales}</Text>
+            <Text style={styles.overviewLabel} adjustsFontSizeToFit numberOfLines={2}>Today's Sales</Text>
           </View>
         </View>
 
@@ -151,7 +152,7 @@ export default function StoreListScreen({ navigation }: Props) {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle={colors === useTheme() && colors.background === '#F5F5F5' ? 'dark-content' : 'light-content'} backgroundColor={colors.background} />
       <FlatList
         data={MOCK_STORES}
@@ -172,7 +173,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.background,
   },
   listContainer: {
-    paddingBottom: 100,
+    paddingBottom: 20,
   },
   headerSection: {
     padding: 20,
@@ -198,24 +199,28 @@ const createStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 25,
+    gap: 8,
   },
   overviewCard: {
     flex: 1,
-    padding: 15,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     borderRadius: 12,
-    marginHorizontal: 4,
     alignItems: 'center',
+    minHeight: 70,
+    justifyContent: 'center',
   },
   overviewValue: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 'bold',
     color: colors.textPrimary,
     marginBottom: 4,
   },
   overviewLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: colors.textSecondary,
     textAlign: 'center',
+    lineHeight: 13,
   },
   storesTitle: {
     fontSize: 20,

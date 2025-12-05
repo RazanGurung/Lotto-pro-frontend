@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, SafeAreaView, StatusBar, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, StatusBar, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
@@ -106,7 +107,17 @@ export default function CreateStoreScreen({ navigation }: Props) {
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView style={styles.scrollView}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
         <View style={styles.formContainer}>
           <Text style={styles.subtitle}>Fill in the store details below</Text>
 
@@ -223,8 +234,9 @@ export default function CreateStoreScreen({ navigation }: Props) {
         >
           <Text style={styles.cancelButtonText}>Cancel</Text>
         </TouchableOpacity>
-      </View>
-      </ScrollView>
+        </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -264,8 +276,14 @@ const createStyles = (colors: any) => StyleSheet.create({
   headerSpacer: {
     width: 40,
   },
+  keyboardView: {
+    flex: 1,
+  },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 40,
   },
   formContainer: {
     padding: 20,

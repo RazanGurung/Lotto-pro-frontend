@@ -29,8 +29,12 @@ export default function ProfileScreen({ route, navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         {/* Header Title */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Settings</Text>
@@ -159,6 +163,9 @@ const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: 20,
+  },
   header: {
     paddingHorizontal: 20,
     paddingTop: 20,
@@ -233,7 +240,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   versionContainer: {
     alignItems: 'center',
     paddingVertical: 30,
-    paddingBottom: 40,
+    paddingBottom: 20,
   },
   versionText: {
     fontSize: 12,
