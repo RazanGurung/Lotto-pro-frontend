@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { authService } from '../services/api';
 
 type Props = {
   navigation: any;
@@ -12,23 +13,91 @@ export default function EditProfileScreen({ navigation }: Props) {
   const colors = useTheme();
   const styles = createStyles(colors);
 
-  const [fullName, setFullName] = useState('Store Manager');
-  const [email, setEmail] = useState('manager@lotterypro.com');
-  const [phone, setPhone] = useState('+1 (234) 567-890');
-  const [position, setPosition] = useState('Store Manager');
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [position, setPosition] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
 
-  const handleSave = () => {
-    Alert.alert(
-      'Success',
-      'Profile updated successfully!',
-      [
-        {
-          text: 'OK',
-          onPress: () => navigation.goBack(),
-        },
-      ]
-    );
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  const loadProfile = async () => {
+    setFetching(true);
+    const result = await authService.getProfile();
+
+    console.log('Profile API Response:', result);
+
+    if (result.success && result.data) {
+      console.log('Profile Data:', result.data);
+
+      // Handle different response formats
+      const profileData = result.data.user || result.data;
+
+      setFullName(profileData.full_name || profileData.name || '');
+      setEmail(profileData.email || '');
+      setPhone(profileData.phone || '');
+      setPosition(profileData.position || '');
+    } else {
+      console.error('Profile Load Error:', result.error);
+      Alert.alert('Error', result.error || 'Failed to load profile');
+    }
+
+    setFetching(false);
   };
+
+  const handleSave = async () => {
+    if (!fullName.trim() || !email.trim() || !phone.trim()) {
+      Alert.alert('Validation Error', 'Please fill in all required fields');
+      return;
+    }
+
+    setLoading(true);
+
+    const result = await authService.updateProfile({
+      full_name: fullName.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      position: position.trim(),
+    });
+
+    setLoading(false);
+
+    if (result.success) {
+      Alert.alert(
+        'Success',
+        'Profile updated successfully!',
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ]
+      );
+    } else {
+      Alert.alert('Error', result.error || 'Failed to update profile');
+    }
+  };
+
+  if (fetching) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Edit Profile</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -37,8 +106,12 @@ export default function EditProfileScreen({ navigation }: Props) {
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Edit Profile</Text>
-        <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
-          <Text style={styles.saveButtonText}>Save</Text>
+        <TouchableOpacity onPress={handleSave} style={styles.saveButton} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator size="small" color={colors.white} />
+          ) : (
+            <Text style={styles.saveButtonText}>Save</Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -162,6 +235,16 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 15,
+    fontSize: 16,
+    color: colors.textSecondary,
   },
   formSection: {
     marginHorizontal: 15,

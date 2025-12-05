@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, SafeAreaView, StatusBar } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, SafeAreaView, StatusBar, ActivityIndicator } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
+import { storeService } from '../services/api';
 
 type CreateStoreScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'CreateStore'>;
 
@@ -15,40 +16,82 @@ export default function CreateStoreScreen({ navigation }: Props) {
   const styles = createStyles(colors);
 
   const [storeName, setStoreName] = useState('');
-  const [location, setLocation] = useState('');
+  const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [zip, setZip] = useState('');
   const [lotteryAccountNumber, setLotteryAccountNumber] = useState('');
   const [lotteryPassword, setLotteryPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleCreateStore = () => {
+  const handleCreateStore = async () => {
     // Validation
-    if (!storeName.trim()) {
-      Alert.alert('Error', 'Please enter store name');
+    if (!storeName || storeName.trim() === '') {
+      Alert.alert('Validation Error', 'Please enter store name');
       return;
     }
-    if (!location.trim()) {
-      Alert.alert('Error', 'Please enter location');
+    if (!address || address.trim() === '') {
+      Alert.alert('Validation Error', 'Please enter street address');
       return;
     }
-    if (!lotteryAccountNumber.trim()) {
-      Alert.alert('Error', 'Please enter lottery account number');
+    if (!city || city.trim() === '') {
+      Alert.alert('Validation Error', 'Please enter city');
       return;
     }
-    if (!lotteryPassword.trim()) {
-      Alert.alert('Error', 'Please enter lottery account password');
+    if (!state || state.trim() === '') {
+      Alert.alert('Validation Error', 'Please enter state');
+      return;
+    }
+    if (!zip || zip.trim() === '') {
+      Alert.alert('Validation Error', 'Please enter zip code');
+      return;
+    }
+    if (!lotteryAccountNumber || lotteryAccountNumber.trim() === '') {
+      Alert.alert('Validation Error', 'Please enter lottery account number');
+      return;
+    }
+    if (!lotteryPassword || lotteryPassword.trim() === '') {
+      Alert.alert('Validation Error', 'Please enter lottery account password');
       return;
     }
 
-    // In production, send data to backend API
-    Alert.alert(
-      'Success',
-      'Store created successfully!',
-      [
-        {
-          text: 'OK',
-          onPress: () => navigation.goBack(),
-        },
-      ]
-    );
+    setLoading(true);
+
+    const result = await storeService.createStore({
+      name: storeName.trim(),
+      address: address.trim(),
+      city: city.trim(),
+      state: state.trim(),
+      zip: zip.trim(),
+      lottery_account_number: lotteryAccountNumber.trim(),
+      lottery_password: lotteryPassword.trim(),
+    });
+
+    setLoading(false);
+
+    if (result.success) {
+      Alert.alert(
+        'Success',
+        'Store created successfully!',
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.navigate('StoreList'),
+          },
+        ]
+      );
+
+      // Clear form
+      setStoreName('');
+      setAddress('');
+      setCity('');
+      setState('');
+      setZip('');
+      setLotteryAccountNumber('');
+      setLotteryPassword('');
+    } else {
+      Alert.alert('Error', result.error || 'Failed to create store');
+    }
   };
 
   return (
@@ -72,21 +115,65 @@ export default function CreateStoreScreen({ navigation }: Props) {
           <TextInput
             style={styles.input}
             placeholder="Enter store name"
+            placeholderTextColor={colors.textMuted}
             value={storeName}
             onChangeText={setStoreName}
+            editable={!loading}
           />
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Location *</Text>
+          <Text style={styles.label}>Street Address *</Text>
           <TextInput
             style={styles.input}
-            placeholder="Enter store location/address"
-            value={location}
-            onChangeText={setLocation}
-            multiline
-            numberOfLines={2}
+            placeholder="123 Main Street"
+            placeholderTextColor={colors.textMuted}
+            value={address}
+            onChangeText={setAddress}
+            editable={!loading}
           />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>City *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter city"
+            placeholderTextColor={colors.textMuted}
+            value={city}
+            onChangeText={setCity}
+            editable={!loading}
+          />
+        </View>
+
+        <View style={styles.rowInputGroup}>
+          <View style={[styles.halfInput, { marginRight: 10 }]}>
+            <Text style={styles.label}>State *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="CA"
+              placeholderTextColor={colors.textMuted}
+              value={state}
+              onChangeText={setState}
+              maxLength={2}
+              autoCapitalize="characters"
+              editable={!loading}
+            />
+          </View>
+
+          <View style={[styles.halfInput, { marginRight: 0 }]}>
+            <Text style={styles.label}>Zip Code *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="12345"
+              placeholderTextColor={colors.textMuted}
+              value={zip}
+              onChangeText={setZip}
+              keyboardType="number-pad"
+              maxLength={5}
+              editable={!loading}
+            />
+          </View>
         </View>
 
         <View style={styles.divider} />
@@ -97,8 +184,10 @@ export default function CreateStoreScreen({ navigation }: Props) {
           <TextInput
             style={styles.input}
             placeholder="Enter lottery account number"
+            placeholderTextColor={colors.textMuted}
             value={lotteryAccountNumber}
             onChangeText={setLotteryAccountNumber}
+            editable={!loading}
           />
         </View>
 
@@ -107,17 +196,31 @@ export default function CreateStoreScreen({ navigation }: Props) {
           <TextInput
             style={styles.input}
             placeholder="Enter lottery account password"
+            placeholderTextColor={colors.textMuted}
             value={lotteryPassword}
             onChangeText={setLotteryPassword}
             secureTextEntry
+            editable={!loading}
           />
         </View>
 
-        <TouchableOpacity style={styles.createButton} onPress={handleCreateStore}>
-          <Text style={styles.createButtonText}>Create Store</Text>
+        <TouchableOpacity
+          style={[styles.createButton, loading && styles.createButtonDisabled]}
+          onPress={handleCreateStore}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color={colors.textLight} />
+          ) : (
+            <Text style={styles.createButtonText}>Create Store</Text>
+          )}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
+        <TouchableOpacity
+          style={styles.cancelButton}
+          onPress={() => navigation.goBack()}
+          disabled={loading}
+        >
           <Text style={styles.cancelButtonText}>Cancel</Text>
         </TouchableOpacity>
       </View>
@@ -175,6 +278,14 @@ const createStyles = (colors: any) => StyleSheet.create({
   inputGroup: {
     marginBottom: 20,
   },
+  rowInputGroup: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  halfInput: {
+    flex: 1,
+  },
   label: {
     fontSize: 14,
     fontWeight: '600',
@@ -212,6 +323,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+  },
+  createButtonDisabled: {
+    opacity: 0.6,
   },
   createButtonText: {
     color: colors.textLight,

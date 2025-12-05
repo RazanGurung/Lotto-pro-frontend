@@ -195,7 +195,7 @@ export default function AppNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="MainTabs"
+        initialRouteName="Login"
         screenOptions={{
           headerShown: false, // Hide all default headers
         }}

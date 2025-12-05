@@ -7,6 +7,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { authService } from '../services/api';
 
 const ONBOARDING_COMPLETE_KEY = '@onboarding_complete';
+const AUTH_TOKEN_KEY = '@auth_token';
+const USER_DATA_KEY = '@user_data';
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
@@ -40,6 +42,14 @@ export default function LoginScreen({ navigation }: Props) {
       setLoading(false);
 
       if (result.success) {
+        // Store authentication token and user data
+        if (result.data?.token) {
+          await AsyncStorage.setItem(AUTH_TOKEN_KEY, result.data.token);
+        }
+        if (result.data?.user) {
+          await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(result.data.user));
+        }
+
         // Check if user has completed onboarding
         const onboardingComplete = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
 
