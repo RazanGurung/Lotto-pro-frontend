@@ -1,71 +1,70 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { storeService } from '../services/api';
+import { useFocusEffect } from '@react-navigation/native';
 
 type Props = {
   navigation: any;
 };
 
 type Store = {
-  id: string;
-  name: string;
-  address: string;
-  phone: string;
-  email: string;
-  manager: string;
-  licenseNumber: string;
-  status: 'Active' | 'Inactive';
+  id: number;
+  owner_id: number;
+  store_name: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipcode?: string;
+  lottery_ac_no: string;
+  lottery_pw: string;
+  created_at: string;
+  updated_at?: string;
 };
-
-// Mock data - replace with API call
-const MOCK_STORES: Store[] = [
-  {
-    id: '1',
-    name: 'Downtown Store',
-    address: '123 Main St, City, State 12345',
-    phone: '+1 (234) 567-8901',
-    email: 'downtown@lotterypro.com',
-    manager: 'John Doe',
-    licenseNumber: 'LIC-2024-001',
-    status: 'Active',
-  },
-  {
-    id: '2',
-    name: 'Westside Store',
-    address: '456 West Ave, City, State 12345',
-    phone: '+1 (234) 567-8902',
-    email: 'westside@lotterypro.com',
-    manager: 'Jane Smith',
-    licenseNumber: 'LIC-2024-002',
-    status: 'Active',
-  },
-  {
-    id: '3',
-    name: 'Eastside Store',
-    address: '789 East Blvd, City, State 12345',
-    phone: '+1 (234) 567-8903',
-    email: 'eastside@lotterypro.com',
-    manager: 'Mike Johnson',
-    licenseNumber: 'LIC-2024-003',
-    status: 'Active',
-  },
-  {
-    id: '4',
-    name: 'North Branch',
-    address: '321 North Rd, City, State 12345',
-    phone: '+1 (234) 567-8904',
-    email: 'north@lotterypro.com',
-    manager: 'Sarah Williams',
-    licenseNumber: 'LIC-2024-004',
-    status: 'Inactive',
-  },
-];
 
 export default function StoreInformationScreen({ navigation }: Props) {
   const colors = useTheme();
   const styles = createStyles(colors);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchStores();
+    }, [])
+  );
+
+  const fetchStores = async () => {
+    try {
+      setLoading(true);
+      const result = await storeService.getStores();
+
+      if (result.success && result.data) {
+        const storesData = Array.isArray(result.data) ? result.data : result.data.stores || [];
+        setStores(storesData);
+      } else {
+        setStores([]);
+      }
+    } catch (error) {
+      setStores([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchStores();
+    setRefreshing(false);
+  };
+
+  const formatAddress = (store: Store) => {
+    const parts = [store.address, store.city, store.state, store.zipcode].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : 'No address provided';
+  };
 
   const renderStoreCard = ({ item }: { item: Store }) => (
     <TouchableOpacity
@@ -78,10 +77,10 @@ export default function StoreInformationScreen({ navigation }: Props) {
           <Ionicons name="storefront" size={24} color={colors.primary} />
         </View>
         <View style={styles.storeHeaderInfo}>
-          <Text style={styles.storeName}>{item.name}</Text>
-          <View style={[styles.statusBadge, item.status === 'Active' ? styles.activeBadge : styles.inactiveBadge]}>
-            <Text style={[styles.statusText, item.status === 'Active' ? styles.activeText : styles.inactiveText]}>
-              {item.status}
+          <Text style={styles.storeName}>{item.store_name}</Text>
+          <View style={[styles.statusBadge, styles.activeBadge]}>
+            <Text style={[styles.statusText, styles.activeText]}>
+              Active
             </Text>
           </View>
         </View>
@@ -91,28 +90,38 @@ export default function StoreInformationScreen({ navigation }: Props) {
       <View style={styles.cardBody}>
         <View style={styles.infoRow}>
           <Ionicons name="location-outline" size={18} color={colors.textSecondary} />
-          <Text style={styles.infoText}>{item.address}</Text>
+          <Text style={styles.infoText}>{formatAddress(item)}</Text>
         </View>
 
         <View style={styles.infoRow}>
-          <Ionicons name="call-outline" size={18} color={colors.textSecondary} />
-          <Text style={styles.infoText}>{item.phone}</Text>
+          <Ionicons name="key-outline" size={18} color={colors.textSecondary} />
+          <Text style={styles.infoText}>Account: ••••{item.lottery_ac_no.slice(-4)}</Text>
         </View>
 
         <View style={styles.infoRow}>
-          <Ionicons name="mail-outline" size={18} color={colors.textSecondary} />
-          <Text style={styles.infoText}>{item.email}</Text>
+          <Ionicons name="shield-checkmark-outline" size={18} color={colors.textSecondary} />
+          <Text style={styles.infoText}>Password: ••••</Text>
         </View>
 
         <View style={styles.infoRow}>
-          <Ionicons name="person-outline" size={18} color={colors.textSecondary} />
-          <Text style={styles.infoText}>Manager: {item.manager}</Text>
+          <Ionicons name="calendar-outline" size={18} color={colors.textSecondary} />
+          <Text style={styles.infoText}>Created: {new Date(item.created_at).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })}</Text>
         </View>
 
-        <View style={styles.infoRow}>
-          <Ionicons name="document-text-outline" size={18} color={colors.textSecondary} />
-          <Text style={styles.infoText}>License: {item.licenseNumber}</Text>
-        </View>
+        {item.updated_at && (
+          <View style={styles.infoRow}>
+            <Ionicons name="time-outline" size={18} color={colors.textSecondary} />
+            <Text style={styles.infoText}>Last Updated: {new Date(item.updated_at).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            })}</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.cardFooter}>
@@ -120,6 +129,24 @@ export default function StoreInformationScreen({ navigation }: Props) {
       </View>
     </TouchableOpacity>
   );
+
+  if (loading && !refreshing) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Store Information</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading stores...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -131,13 +158,29 @@ export default function StoreInformationScreen({ navigation }: Props) {
         <View style={{ width: 40 }} />
       </View>
 
-      <FlatList
-        data={MOCK_STORES}
-        renderItem={renderStoreCard}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContainer}
-        showsVerticalScrollIndicator={false}
-      />
+      {stores.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="storefront-outline" size={80} color={colors.textMuted} />
+          <Text style={styles.emptyTitle}>No Stores Found</Text>
+          <Text style={styles.emptyText}>Create your first store to get started</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={stores}
+          renderItem={renderStoreCard}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -167,6 +210,34 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: colors.textPrimary,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
   listContainer: {
     padding: 15,

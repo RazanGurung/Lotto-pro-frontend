@@ -27,6 +27,10 @@ export default function LotteryGameDetailScreen({ navigation, route }: Props) {
     return colors.success;
   };
 
+  const priceNum = parseFloat(game.price);
+  const isActive = game.status === 'active';
+  const totalTickets = game.end_number - game.start_number + 1;
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* Header */}
@@ -37,7 +41,10 @@ export default function LotteryGameDetailScreen({ navigation, route }: Props) {
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Game Details</Text>
         </View>
-        <TouchableOpacity style={styles.editButton}>
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={() => navigation.navigate('EditLotteryGame', { game })}
+        >
           <Ionicons name="create-outline" size={24} color={colors.primary} />
         </TouchableOpacity>
       </View>
@@ -45,8 +52,8 @@ export default function LotteryGameDetailScreen({ navigation, route }: Props) {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Game Image */}
         <View style={styles.imageContainer}>
-          {game.imageUrl ? (
-            <Image source={{ uri: game.imageUrl }} style={styles.gameImage} resizeMode="cover" />
+          {game.image_url ? (
+            <Image source={{ uri: game.image_url }} style={styles.gameImage} resizeMode="contain" />
           ) : (
             <View style={[styles.imagePlaceholder, { backgroundColor: colors.backgroundDark }]}>
               <Ionicons name="ticket" size={80} color={colors.textMuted} />
@@ -59,13 +66,13 @@ export default function LotteryGameDetailScreen({ navigation, route }: Props) {
           {/* Title and Status */}
           <View style={styles.titleRow}>
             <View style={styles.titleContainer}>
-              <Text style={styles.gameName}>{game.name}</Text>
-              <Text style={styles.gameNumber}>Game #{game.gameNumber}</Text>
+              <Text style={styles.gameName}>{game.lottery_name}</Text>
+              <Text style={styles.gameNumber}>Game #{game.lottery_number}</Text>
             </View>
-            <View style={[styles.statusBadge, { backgroundColor: game.available ? colors.success + '15' : colors.textMuted + '15' }]}>
-              <View style={[styles.statusDot, { backgroundColor: game.available ? colors.success : colors.textMuted }]} />
-              <Text style={[styles.statusText, { color: game.available ? colors.success : colors.textMuted }]}>
-                {game.available ? 'Active' : 'Inactive'}
+            <View style={[styles.statusBadge, { backgroundColor: isActive ? colors.success + '15' : colors.textMuted + '15' }]}>
+              <View style={[styles.statusDot, { backgroundColor: isActive ? colors.success : colors.textMuted }]} />
+              <Text style={[styles.statusText, { color: isActive ? colors.success : colors.textMuted }]}>
+                {isActive ? 'Active' : 'Inactive'}
               </Text>
             </View>
           </View>
@@ -73,8 +80,8 @@ export default function LotteryGameDetailScreen({ navigation, route }: Props) {
           {/* Price */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Ticket Price</Text>
-            <View style={[styles.priceContainer, { backgroundColor: getPriceColor(game.price) + '15' }]}>
-              <Text style={[styles.priceText, { color: getPriceColor(game.price) }]}>${game.price}</Text>
+            <View style={[styles.priceContainer, { backgroundColor: getPriceColor(priceNum) + '15' }]}>
+              <Text style={[styles.priceText, { color: getPriceColor(priceNum) }]}>${game.price}</Text>
             </View>
           </View>
 
@@ -85,18 +92,18 @@ export default function LotteryGameDetailScreen({ navigation, route }: Props) {
           <View style={styles.detailsGrid}>
             <View style={styles.detailBox}>
               <View style={styles.detailIconContainer}>
-                <Ionicons name="trophy" size={24} color={colors.warning} />
+                <Ionicons name="receipt" size={24} color={colors.warning} />
               </View>
-              <Text style={styles.detailLabel}>Top Prize</Text>
-              <Text style={styles.detailValue}>{game.topPrize}</Text>
+              <Text style={styles.detailLabel}>Ticket Range</Text>
+              <Text style={styles.detailValue}>{game.start_number}-{game.end_number}</Text>
             </View>
 
             <View style={styles.detailBox}>
               <View style={styles.detailIconContainer}>
-                <Ionicons name="analytics" size={24} color={colors.info} />
+                <Ionicons name="calculator" size={24} color={colors.info} />
               </View>
-              <Text style={styles.detailLabel}>Overall Odds</Text>
-              <Text style={styles.detailValue}>{game.odds}</Text>
+              <Text style={styles.detailLabel}>Total Tickets</Text>
+              <Text style={styles.detailValue}>{totalTickets.toLocaleString()}</Text>
             </View>
 
             <View style={styles.detailBox}>
@@ -104,15 +111,19 @@ export default function LotteryGameDetailScreen({ navigation, route }: Props) {
                 <Ionicons name="calendar" size={24} color={colors.primary} />
               </View>
               <Text style={styles.detailLabel}>Launch Date</Text>
-              <Text style={styles.detailValue}>{game.launchDate}</Text>
+              <Text style={styles.detailValue}>
+                {game.launch_date
+                  ? new Date(game.launch_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                  : 'Not Set'}
+              </Text>
             </View>
 
             <View style={styles.detailBox}>
               <View style={styles.detailIconContainer}>
-                <Ionicons name="pricetag" size={24} color={colors.success} />
+                <Ionicons name="location" size={24} color={colors.success} />
               </View>
-              <Text style={styles.detailLabel}>Game Number</Text>
-              <Text style={styles.detailValue}>#{game.gameNumber}</Text>
+              <Text style={styles.detailLabel}>State</Text>
+              <Text style={styles.detailValue}>{game.state}</Text>
             </View>
           </View>
         </View>
@@ -126,13 +137,13 @@ export default function LotteryGameDetailScreen({ navigation, route }: Props) {
 
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Availability Status</Text>
-            <Text style={styles.infoValue}>{game.available ? 'Available for Purchase' : 'Not Available'}</Text>
+            <Text style={styles.infoValue}>{isActive ? 'Available for Purchase' : 'Not Available'}</Text>
           </View>
 
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Price Point Category</Text>
             <Text style={styles.infoValue}>
-              {game.price >= 20 ? 'Premium' : game.price >= 10 ? 'High' : game.price >= 5 ? 'Medium' : 'Budget'}
+              {priceNum >= 20 ? 'Premium' : priceNum >= 10 ? 'High' : priceNum >= 5 ? 'Medium' : 'Budget'}
             </Text>
           </View>
 
@@ -141,26 +152,32 @@ export default function LotteryGameDetailScreen({ navigation, route }: Props) {
             <Text style={styles.infoValue}>Scratch-Off Lottery</Text>
           </View>
 
-          {game.startNumber && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Start Number</Text>
-              <Text style={styles.infoValue}>{game.startNumber}</Text>
-            </View>
-          )}
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Lottery Number</Text>
+            <Text style={styles.infoValue}>{game.lottery_number}</Text>
+          </View>
 
-          {game.endNumber && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>End Number</Text>
-              <Text style={styles.infoValue}>{game.endNumber}</Text>
-            </View>
-          )}
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Start Number</Text>
+            <Text style={styles.infoValue}>{game.start_number}</Text>
+          </View>
 
-          {game.startNumber && game.endNumber && (
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>End Number</Text>
+            <Text style={styles.infoValue}>{game.end_number}</Text>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Created Date</Text>
+            <Text style={styles.infoValue}>
+              {new Date(game.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </Text>
+          </View>
+
+          {game.creator && (
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Total Tickets</Text>
-              <Text style={styles.infoValue}>
-                {(parseInt(game.endNumber) - parseInt(game.startNumber) + 1).toLocaleString()}
-              </Text>
+              <Text style={styles.infoLabel}>Created By</Text>
+              <Text style={styles.infoValue}>{game.creator.name}</Text>
             </View>
           )}
         </View>
@@ -169,24 +186,10 @@ export default function LotteryGameDetailScreen({ navigation, route }: Props) {
         <View style={styles.actionButtons}>
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.primary }]}
-            onPress={() => console.log('Edit game')}
+            onPress={() => navigation.navigate('EditLotteryGame', { game })}
           >
             <Ionicons name="create-outline" size={20} color={colors.white} />
             <Text style={styles.actionButtonText}>Edit Game</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: game.available ? colors.textMuted : colors.success }]}
-            onPress={() => console.log('Toggle availability')}
-          >
-            <Ionicons
-              name={game.available ? 'pause-outline' : 'play-outline'}
-              size={20}
-              color={colors.white}
-            />
-            <Text style={styles.actionButtonText}>
-              {game.available ? 'Deactivate' : 'Activate'}
-            </Text>
           </TouchableOpacity>
         </View>
 
@@ -237,7 +240,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   imageContainer: {
     width: '100%',
-    height: 250,
+    aspectRatio: 1,
     backgroundColor: colors.backgroundDark,
   },
   gameImage: {

@@ -13,13 +13,14 @@ interface LoginData {
 }
 
 interface StoreData {
-  name: string;
-  address: string;
-  city: string;
-  state: string;
-  zip: string;
-  lottery_account_number: string;
-  lottery_password: string;
+  owner_id: number;
+  store_name: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipcode?: string;
+  lottery_ac_no: string;
+  lottery_pw: string;
 }
 
 interface ProfileData {
@@ -27,6 +28,18 @@ interface ProfileData {
   email?: string;
   phone?: string;
   position?: string;
+}
+
+interface LotteryData {
+  lottery_name: string;
+  lottery_number: string;
+  state: string;
+  price: number;
+  start_number: number;
+  end_number: number;
+  launch_date?: string;
+  status?: string;
+  image_url?: string;
 }
 
 interface ApiResponse<T> {
@@ -210,7 +223,20 @@ export const storeService = {
         };
       }
 
-      const response = await fetch(`${API_URL}/stores`, {
+      // Get user data from AsyncStorage
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      const userData = await AsyncStorage.getItem('@user_data');
+
+      if (!userData) {
+        return {
+          success: false,
+          error: 'User data not found',
+        };
+      }
+
+      const url = `${API_URL}/stores`;
+
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -223,7 +249,7 @@ export const storeService = {
       if (!response.ok) {
         return {
           success: false,
-          error: result.error || 'Failed to fetch stores',
+          error: result.error || result.message || 'Failed to fetch stores',
         };
       }
 
@@ -250,7 +276,7 @@ export const storeService = {
         };
       }
 
-      const response = await fetch(`${API_URL}/stores`, {
+      const response = await fetch(`${API_URL}/store`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -265,6 +291,130 @@ export const storeService = {
         return {
           success: false,
           error: result.error || 'Failed to create store',
+        };
+      }
+
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || 'Network error. Please check your connection.',
+      };
+    }
+  },
+};
+
+export const lotteryService = {
+  createLottery: async (data: LotteryData): Promise<ApiResponse<any>> => {
+    try {
+      const token = await getAuthToken();
+
+      if (!token) {
+        return {
+          success: false,
+          error: 'No authentication token found',
+        };
+      }
+
+      const response = await fetch(`${API_URL}/super-admin/lotteries`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: result.error || result.message || 'Failed to create lottery',
+        };
+      }
+
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || 'Network error. Please check your connection.',
+      };
+    }
+  },
+
+  getLotteries: async (): Promise<ApiResponse<any>> => {
+    try {
+      const token = await getAuthToken();
+
+      if (!token) {
+        return {
+          success: false,
+          error: 'No authentication token found',
+        };
+      }
+
+      const response = await fetch(`${API_URL}/super-admin/lotteries`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: result.error || result.message || 'Failed to fetch lotteries',
+        };
+      }
+
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || 'Network error. Please check your connection.',
+      };
+    }
+  },
+
+  updateLottery: async (lotteryId: number, data: LotteryData): Promise<ApiResponse<any>> => {
+    try {
+      const token = await getAuthToken();
+
+      if (!token) {
+        return {
+          success: false,
+          error: 'No authentication token found',
+        };
+      }
+
+      const response = await fetch(`${API_URL}/super-admin/lotteries/${lotteryId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: result.error || result.message || 'Failed to update lottery',
         };
       }
 

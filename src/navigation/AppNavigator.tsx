@@ -31,6 +31,7 @@ import ThemeSelectionScreen from '../screens/ThemeSelectionScreen';
 import LotteryOrganizationListScreen from '../screens/LotteryOrganizationListScreen';
 import LotteryOrganizationDashboardScreen from '../screens/LotteryOrganizationDashboardScreen';
 import AddLotteryGameScreen from '../screens/AddLotteryGameScreen';
+import EditLotteryGameScreen from '../screens/EditLotteryGameScreen';
 import LotteryGameDetailScreen from '../screens/LotteryGameDetailScreen';
 import { lightTheme, darkTheme } from '../styles/colors';
 
@@ -75,24 +76,16 @@ export type RootStackParamList = {
     state: string;
     organizationName: string;
   };
+  EditLotteryGame: {
+    game: any;
+  };
   LotteryGameDetail: {
-    game: {
-      id: string;
-      name: string;
-      price: number;
-      topPrize: string;
-      odds: string;
-      available: boolean;
-      launchDate: string;
-      gameNumber: string;
-      startNumber?: string;
-      endNumber?: string;
-      imageUrl?: string;
-    };
+    game: any;
   };
   Dashboard: {
     storeId: string;
     storeName: string;
+    state: string;
   };
   LotteryDetail: {
     lottery: ScratchOffLottery;
@@ -404,6 +397,10 @@ export default function AppNavigator() {
         <Stack.Screen
           name="AddLotteryGame"
           component={AddLotteryGameScreen}
+        />
+        <Stack.Screen
+          name="EditLotteryGame"
+          component={EditLotteryGameScreen}
         />
         <Stack.Screen
           name="LotteryGameDetail"

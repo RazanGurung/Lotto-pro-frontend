@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, StatusBar, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
 import { storeService } from '../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type CreateStoreScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'CreateStore'>;
 
@@ -24,48 +25,66 @@ export default function CreateStoreScreen({ navigation }: Props) {
   const [lotteryAccountNumber, setLotteryAccountNumber] = useState('');
   const [lotteryPassword, setLotteryPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [userId, setUserId] = useState<number | null>(null);
+
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      const userData = await AsyncStorage.getItem('@user_data');
+      if (userData) {
+        const user = JSON.parse(userData);
+        setUserId(user.id);
+      }
+    } catch (error) {
+      console.error('Failed to load user data:', error);
+    }
+  };
 
   const handleCreateStore = async () => {
+    // Check if user ID is loaded
+    if (!userId) {
+      Alert.alert('Error', 'User information not loaded. Please try again.');
+      return;
+    }
+
     // Validation
     if (!storeName || storeName.trim() === '') {
       Alert.alert('Validation Error', 'Please enter store name');
-      return;
-    }
-    if (!address || address.trim() === '') {
-      Alert.alert('Validation Error', 'Please enter street address');
-      return;
-    }
-    if (!city || city.trim() === '') {
-      Alert.alert('Validation Error', 'Please enter city');
-      return;
-    }
-    if (!state || state.trim() === '') {
-      Alert.alert('Validation Error', 'Please enter state');
-      return;
-    }
-    if (!zip || zip.trim() === '') {
-      Alert.alert('Validation Error', 'Please enter zip code');
       return;
     }
     if (!lotteryAccountNumber || lotteryAccountNumber.trim() === '') {
       Alert.alert('Validation Error', 'Please enter lottery account number');
       return;
     }
+    // Validate lottery account number: exactly 8 digits
+    if (!/^\d{8}$/.test(lotteryAccountNumber.trim())) {
+      Alert.alert('Validation Error', 'Lottery account number must be exactly 8 digits');
+      return;
+    }
     if (!lotteryPassword || lotteryPassword.trim() === '') {
       Alert.alert('Validation Error', 'Please enter lottery account password');
+      return;
+    }
+    // Validate lottery password: exactly 4 digits
+    if (!/^\d{4}$/.test(lotteryPassword.trim())) {
+      Alert.alert('Validation Error', 'Lottery account password must be exactly 4 digits');
       return;
     }
 
     setLoading(true);
 
     const result = await storeService.createStore({
-      name: storeName.trim(),
-      address: address.trim(),
-      city: city.trim(),
-      state: state.trim(),
-      zip: zip.trim(),
-      lottery_account_number: lotteryAccountNumber.trim(),
-      lottery_password: lotteryPassword.trim(),
+      owner_id: userId,
+      store_name: storeName.trim(),
+      address: address.trim() || undefined,
+      city: city.trim() || undefined,
+      state: state.trim() || undefined,
+      zipcode: zip.trim() || undefined,
+      lottery_ac_no: lotteryAccountNumber.trim(),
+      lottery_pw: lotteryPassword.trim(),
     });
 
     setLoading(false);
@@ -134,7 +153,7 @@ export default function CreateStoreScreen({ navigation }: Props) {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Street Address *</Text>
+          <Text style={styles.label}>Street Address</Text>
           <TextInput
             style={styles.input}
             placeholder="123 Main Street"
@@ -146,7 +165,7 @@ export default function CreateStoreScreen({ navigation }: Props) {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>City *</Text>
+          <Text style={styles.label}>City</Text>
           <TextInput
             style={styles.input}
             placeholder="Enter city"
@@ -159,7 +178,7 @@ export default function CreateStoreScreen({ navigation }: Props) {
 
         <View style={styles.rowInputGroup}>
           <View style={[styles.halfInput, { marginRight: 10 }]}>
-            <Text style={styles.label}>State *</Text>
+            <Text style={styles.label}>State</Text>
             <TextInput
               style={styles.input}
               placeholder="CA"
@@ -173,7 +192,7 @@ export default function CreateStoreScreen({ navigation }: Props) {
           </View>
 
           <View style={[styles.halfInput, { marginRight: 0 }]}>
-            <Text style={styles.label}>Zip Code *</Text>
+            <Text style={styles.label}>Zip Code</Text>
             <TextInput
               style={styles.input}
               placeholder="12345"
@@ -194,10 +213,16 @@ export default function CreateStoreScreen({ navigation }: Props) {
           <Text style={styles.label}>Lottery Account Number *</Text>
           <TextInput
             style={styles.input}
-            placeholder="Enter lottery account number"
+            placeholder="12345678 (8 digits)"
             placeholderTextColor={colors.textMuted}
             value={lotteryAccountNumber}
-            onChangeText={setLotteryAccountNumber}
+            onChangeText={(text) => {
+              // Only allow digits and max 8 characters
+              const cleaned = text.replace(/[^0-9]/g, '');
+              setLotteryAccountNumber(cleaned);
+            }}
+            keyboardType="number-pad"
+            maxLength={8}
             editable={!loading}
           />
         </View>
@@ -206,10 +231,16 @@ export default function CreateStoreScreen({ navigation }: Props) {
           <Text style={styles.label}>Lottery Account Password *</Text>
           <TextInput
             style={styles.input}
-            placeholder="Enter lottery account password"
+            placeholder="1234 (4 digits)"
             placeholderTextColor={colors.textMuted}
             value={lotteryPassword}
-            onChangeText={setLotteryPassword}
+            onChangeText={(text) => {
+              // Only allow digits and max 4 characters
+              const cleaned = text.replace(/[^0-9]/g, '');
+              setLotteryPassword(cleaned);
+            }}
+            keyboardType="number-pad"
+            maxLength={4}
             secureTextEntry
             editable={!loading}
           />

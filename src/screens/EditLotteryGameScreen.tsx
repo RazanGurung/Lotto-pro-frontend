@@ -8,27 +8,27 @@ import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
 import { lotteryService } from '../services/api';
 
-type AddLotteryGameScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'AddLotteryGame'>;
-type AddLotteryGameScreenRouteProp = RouteProp<RootStackParamList, 'AddLotteryGame'>;
+type EditLotteryGameScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'EditLotteryGame'>;
+type EditLotteryGameScreenRouteProp = RouteProp<RootStackParamList, 'EditLotteryGame'>;
 
 type Props = {
-  navigation: AddLotteryGameScreenNavigationProp;
-  route: AddLotteryGameScreenRouteProp;
+  navigation: EditLotteryGameScreenNavigationProp;
+  route: EditLotteryGameScreenRouteProp;
 };
 
-export default function AddLotteryGameScreen({ navigation, route }: Props) {
+export default function EditLotteryGameScreen({ navigation, route }: Props) {
   const colors = useTheme();
   const styles = createStyles(colors);
-  const { state, organizationName } = route.params;
+  const { game } = route.params;
 
-  const [gameName, setGameName] = useState('');
-  const [lotteryNumber, setLotteryNumber] = useState('');
-  const [startNumber, setStartNumber] = useState('');
-  const [endNumber, setEndNumber] = useState('');
-  const [price, setPrice] = useState('');
-  const [launchDate, setLaunchDate] = useState('');
-  const [isAvailable, setIsAvailable] = useState(true);
-  const [imageUrl, setImageUrl] = useState('');
+  const [gameName, setGameName] = useState(game.lottery_name);
+  const [lotteryNumber, setLotteryNumber] = useState(game.lottery_number);
+  const [startNumber, setStartNumber] = useState(game.start_number.toString());
+  const [endNumber, setEndNumber] = useState(game.end_number.toString());
+  const [price, setPrice] = useState(game.price.toString());
+  const [launchDate, setLaunchDate] = useState(game.launch_date || '');
+  const [isAvailable, setIsAvailable] = useState(game.status === 'active');
+  const [imageUrl, setImageUrl] = useState(game.image_url || '');
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
@@ -66,10 +66,10 @@ export default function AddLotteryGameScreen({ navigation, route }: Props) {
 
     setLoading(true);
 
-    const result = await lotteryService.createLottery({
+    const result = await lotteryService.updateLottery(game.lottery_id, {
       lottery_name: gameName.trim(),
       lottery_number: lotteryNumber.trim(),
-      state: state,
+      state: game.state,
       price: priceNum,
       start_number: parseInt(startNumber),
       end_number: parseInt(endNumber),
@@ -81,14 +81,14 @@ export default function AddLotteryGameScreen({ navigation, route }: Props) {
     setLoading(false);
 
     if (result.success) {
-      Alert.alert('Success', 'Lottery game created successfully!', [
+      Alert.alert('Success', 'Lottery game updated successfully!', [
         {
           text: 'OK',
           onPress: () => navigation.goBack()
         }
       ]);
     } else {
-      Alert.alert('Error', result.error || 'Failed to create lottery game');
+      Alert.alert('Error', result.error || 'Failed to update lottery game');
     }
   };
 
@@ -100,8 +100,8 @@ export default function AddLotteryGameScreen({ navigation, route }: Props) {
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Add New Game</Text>
-          <Text style={styles.headerSubtitle}>{organizationName} ({state})</Text>
+          <Text style={styles.headerTitle}>Edit Game</Text>
+          <Text style={styles.headerSubtitle}>{game.state}</Text>
         </View>
         <View style={styles.headerSpacer} />
       </View>
@@ -246,7 +246,7 @@ export default function AddLotteryGameScreen({ navigation, route }: Props) {
           {loading ? (
             <ActivityIndicator color={colors.white} />
           ) : (
-            <Text style={styles.saveButtonText}>Create Lottery</Text>
+            <Text style={styles.saveButtonText}>Update Lottery</Text>
           )}
         </TouchableOpacity>
       </View>

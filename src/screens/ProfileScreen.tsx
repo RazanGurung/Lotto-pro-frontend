@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -20,6 +21,15 @@ export default function ProfileScreen({ route, navigation }: Props) {
   const styles = createStyles(colors);
   const storeName = route.params?.storeName || 'Lottery Pro';
   const storeId = route.params?.storeId;
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  useEffect(() => {
+    const getUserType = async () => {
+      const userType = await AsyncStorage.getItem('@user_type');
+      setIsSuperAdmin(userType === 'superadmin');
+    };
+    getUserType();
+  }, []);
 
   const handleLogout = () => {
     navigation.reset({
@@ -45,29 +55,33 @@ export default function ProfileScreen({ route, navigation }: Props) {
         <View style={styles.menuSection}>
           <Text style={styles.sectionTitle}>Account</Text>
 
-          <TouchableOpacity
-            style={styles.menuItem}
-            activeOpacity={0.7}
-            onPress={() => navigation.navigate('EditProfile')}
-          >
-            <View style={styles.iconContainer}>
-              <Ionicons name="person-outline" size={22} color={colors.primary} />
-            </View>
-            <Text style={styles.menuText}>Edit Profile</Text>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
+          {!isSuperAdmin && (
+            <>
+              <TouchableOpacity
+                style={styles.menuItem}
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate('EditProfile')}
+              >
+                <View style={styles.iconContainer}>
+                  <Ionicons name="person-outline" size={22} color={colors.primary} />
+                </View>
+                <Text style={styles.menuText}>Edit Profile</Text>
+                <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.menuItem}
-            activeOpacity={0.7}
-            onPress={() => navigation.navigate('StoreInformation')}
-          >
-            <View style={styles.iconContainer}>
-              <Ionicons name="storefront-outline" size={22} color={colors.primary} />
-            </View>
-            <Text style={styles.menuText}>Store Information</Text>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.menuItem}
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate('StoreInformation')}
+              >
+                <View style={styles.iconContainer}>
+                  <Ionicons name="storefront-outline" size={22} color={colors.primary} />
+                </View>
+                <Text style={styles.menuText}>Store Information</Text>
+                <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            </>
+          )}
 
           <TouchableOpacity
             style={styles.menuItem}
@@ -81,17 +95,19 @@ export default function ProfileScreen({ route, navigation }: Props) {
             <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.menuItem}
-            activeOpacity={0.7}
-            onPress={() => navigation.navigate('PaymentManagement')}
-          >
-            <View style={styles.iconContainer}>
-              <Ionicons name="card-outline" size={22} color={colors.primary} />
-            </View>
-            <Text style={styles.menuText}>Payment Management</Text>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
+          {!isSuperAdmin && (
+            <TouchableOpacity
+              style={styles.menuItem}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('PaymentManagement')}
+            >
+              <View style={styles.iconContainer}>
+                <Ionicons name="card-outline" size={22} color={colors.primary} />
+              </View>
+              <Text style={styles.menuText}>Payment Management</Text>
+              <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.menuSection}>

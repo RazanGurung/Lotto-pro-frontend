@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Dimensions, TouchableOpacity, StatusBar, useColorScheme, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, Dimensions, TouchableOpacity, StatusBar, useColorScheme, TextInput, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
+import { lotteryService } from '../services/api';
+import { useFocusEffect } from '@react-navigation/native';
 
 type DashboardScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
 type DashboardScreenRouteProp = RouteProp<RootStackParamList, 'Dashboard'>;
@@ -15,75 +17,67 @@ type Props = {
   route: DashboardScreenRouteProp;
 };
 
-type ScratchOffLottery = {
-  id: string;
-  name: string;
-  price: number;
-  totalCount: number;
-  currentCount: number;
-  image: string;
+type Lottery = {
+  lottery_id: number;
+  lottery_name: string;
+  lottery_number: string;
+  state: string;
+  price: string;
+  start_number: number;
+  end_number: number;
+  launch_date?: string;
+  status: string;
+  created_at: string;
+  image_url?: string;
+  assigned_to_caller?: boolean;
+  creator?: {
+    super_admin_id: number;
+    name: string;
+    email: string;
+  };
 };
-
-// Mock data - replace with API call (50 different scratch-off lotteries)
-const MOCK_SCRATCH_OFF_LOTTERIES: ScratchOffLottery[] = [
-  { id: '1', name: 'Lucky 7s', price: 1, totalCount: 100, currentCount: 45, image: '🎰' },
-  { id: '2', name: 'Triple Match', price: 2, totalCount: 100, currentCount: 32, image: '💎' },
-  { id: '3', name: 'Gold Rush', price: 5, totalCount: 75, currentCount: 28, image: '🏆' },
-  { id: '4', name: 'Diamond Jackpot', price: 10, totalCount: 50, currentCount: 15, image: '💰' },
-  { id: '5', name: 'Cash Blast', price: 1, totalCount: 100, currentCount: 50, image: '💵' },
-  { id: '6', name: 'Money Tree', price: 2, totalCount: 100, currentCount: 38, image: '🌳' },
-  { id: '7', name: 'Fortune Cookie', price: 3, totalCount: 75, currentCount: 22, image: '🥠' },
-  { id: '8', name: 'Wild Cherries', price: 1, totalCount: 100, currentCount: 41, image: '🍒' },
-  { id: '9', name: 'Lucky Clover', price: 5, totalCount: 75, currentCount: 19, image: '🍀' },
-  { id: '10', name: 'Star Power', price: 2, totalCount: 100, currentCount: 35, image: '⭐' },
-  { id: '11', name: 'Cash Cow', price: 3, totalCount: 75, currentCount: 27, image: '🐄' },
-  { id: '12', name: 'Treasure Hunt', price: 10, totalCount: 50, currentCount: 12, image: '🗺️' },
-  { id: '13', name: 'Rainbow Riches', price: 1, totalCount: 100, currentCount: 48, image: '🌈' },
-  { id: '14', name: 'Royal Flush', price: 5, totalCount: 75, currentCount: 21, image: '👑' },
-  { id: '15', name: 'Lucky Dice', price: 2, totalCount: 100, currentCount: 33, image: '🎲' },
-  { id: '16', name: 'Money Bag', price: 3, totalCount: 75, currentCount: 25, image: '💰' },
-  { id: '17', name: 'Golden Ticket', price: 10, totalCount: 50, currentCount: 8, image: '🎫' },
-  { id: '18', name: 'Cash Explosion', price: 1, totalCount: 100, currentCount: 44, image: '💥' },
-  { id: '19', name: 'Win Big', price: 5, totalCount: 75, currentCount: 18, image: '🎉' },
-  { id: '20', name: 'Jackpot Fever', price: 2, totalCount: 100, currentCount: 31, image: '🔥' },
-  { id: '21', name: 'Lucky Numbers', price: 1, totalCount: 100, currentCount: 47, image: '🔢' },
-  { id: '22', name: 'Cash Wave', price: 3, totalCount: 75, currentCount: 24, image: '🌊' },
-  { id: '23', name: 'Money Mania', price: 5, totalCount: 75, currentCount: 16, image: '💸' },
-  { id: '24', name: 'Winning Streak', price: 2, totalCount: 100, currentCount: 36, image: '🏃' },
-  { id: '25', name: 'Pot of Gold', price: 10, totalCount: 50, currentCount: 10, image: '🍯' },
-  { id: '26', name: 'Fast Cash', price: 1, totalCount: 100, currentCount: 42, image: '⚡' },
-  { id: '27', name: 'Lucky Stars', price: 2, totalCount: 100, currentCount: 30, image: '✨' },
-  { id: '28', name: 'Cash Bonanza', price: 5, totalCount: 75, currentCount: 20, image: '🎊' },
-  { id: '29', name: 'Money Multiplier', price: 3, totalCount: 75, currentCount: 26, image: '✖️' },
-  { id: '30', name: 'Mega Bucks', price: 10, totalCount: 50, currentCount: 9, image: '💲' },
-  { id: '31', name: 'Lucky Break', price: 1, totalCount: 100, currentCount: 46, image: '🎯' },
-  { id: '32', name: 'Cash Prize', price: 2, totalCount: 100, currentCount: 34, image: '🏅' },
-  { id: '33', name: 'Golden Fortune', price: 5, totalCount: 75, currentCount: 17, image: '🔱' },
-  { id: '34', name: 'Money Magic', price: 3, totalCount: 75, currentCount: 23, image: '🪄' },
-  { id: '35', name: 'Jackpot King', price: 10, totalCount: 50, currentCount: 11, image: '👸' },
-  { id: '36', name: 'Cash Flow', price: 1, totalCount: 100, currentCount: 43, image: '💧' },
-  { id: '37', name: 'Win Spin', price: 2, totalCount: 100, currentCount: 29, image: '🎡' },
-  { id: '38', name: 'Lucky Wheel', price: 5, totalCount: 75, currentCount: 14, image: '🎰' },
-  { id: '39', name: 'Money Madness', price: 3, totalCount: 75, currentCount: 28, image: '🤪' },
-  { id: '40', name: 'Cash Kingdom', price: 10, totalCount: 50, currentCount: 7, image: '🏰' },
-  { id: '41', name: 'Lucky Day', price: 1, totalCount: 100, currentCount: 49, image: '☀️' },
-  { id: '42', name: 'Instant Win', price: 2, totalCount: 100, currentCount: 37, image: '⚡' },
-  { id: '43', name: 'Golden Gates', price: 5, totalCount: 75, currentCount: 13, image: '🚪' },
-  { id: '44', name: 'Money Rush', price: 3, totalCount: 75, currentCount: 22, image: '🏃‍♂️' },
-  { id: '45', name: 'Super Jackpot', price: 10, totalCount: 50, currentCount: 6, image: '🦸' },
-  { id: '46', name: 'Cash Carnival', price: 1, totalCount: 100, currentCount: 40, image: '🎪' },
-  { id: '47', name: 'Lucky Spin', price: 2, totalCount: 100, currentCount: 28, image: '🔄' },
-  { id: '48', name: 'Gold Mine', price: 5, totalCount: 75, currentCount: 15, image: '⛏️' },
-  { id: '49', name: 'Money Storm', price: 3, totalCount: 75, currentCount: 21, image: '⛈️' },
-  { id: '50', name: 'Mega Fortune', price: 10, totalCount: 50, currentCount: 5, image: '🎰' },
-];
 
 export default function DashboardScreen({ route, navigation }: Props) {
   const colors = useTheme();
   const colorScheme = useColorScheme();
   const styles = createStyles(colors, colorScheme);
-  const { storeName } = route.params;
+  const { storeName, state } = route.params;
   const [searchQuery, setSearchQuery] = useState('');
+  const [lotteries, setLotteries] = useState<Lottery[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchLotteries();
+    }, [state])
+  );
+
+  const fetchLotteries = async () => {
+    try {
+      setLoading(true);
+      const result = await lotteryService.getLotteries();
+
+      if (result.success && result.data) {
+        const lotteriesData = Array.isArray(result.data) ? result.data : result.data.lotteries || [];
+        // Filter by state
+        const stateLotteries = lotteriesData.filter((lot: Lottery) => lot.state === state);
+        setLotteries(stateLotteries);
+      } else {
+        setLotteries([]);
+      }
+    } catch (error) {
+      setLotteries([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchLotteries();
+    setRefreshing(false);
+  };
 
   const handleLogout = () => {
     navigation.reset({
@@ -92,12 +86,14 @@ export default function DashboardScreen({ route, navigation }: Props) {
     });
   };
 
-  const filteredLotteries = MOCK_SCRATCH_OFF_LOTTERIES.filter(lottery =>
-    lottery.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  const filteredLotteries = lotteries.filter(lottery =>
+    lottery.lottery_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     lottery.price.toString().includes(searchQuery)
   );
 
-  const getStockStatus = (current: number, total: number) => {
+  const getStockStatus = (start: number, end: number) => {
+    const total = end - start + 1;
+    const current = Math.floor(total * 0.6); // Mock current stock at 60%
     const percentage = (current / total) * 100;
     if (percentage === 0) return { status: 'sold-out', color: colors.error, label: 'Sold Out' };
     if (percentage <= 20) return { status: 'low', color: colors.warning, label: 'Low Stock' };
@@ -105,15 +101,18 @@ export default function DashboardScreen({ route, navigation }: Props) {
     return { status: 'good', color: colors.success, label: 'In Stock' };
   };
 
-  const renderLotteryCard = (lottery: ScratchOffLottery) => {
-    const stockInfo = getStockStatus(lottery.currentCount, lottery.totalCount);
-    const stockPercentage = (lottery.currentCount / lottery.totalCount) * 100;
+  const renderLotteryCard = (lottery: Lottery) => {
+    const totalTickets = lottery.end_number - lottery.start_number + 1;
+    const currentStock = Math.floor(totalTickets * 0.6); // Mock current stock
+    const stockInfo = getStockStatus(lottery.start_number, lottery.end_number);
+    const stockPercentage = (currentStock / totalTickets) * 100;
+    const priceNum = parseFloat(lottery.price);
 
     return (
       <TouchableOpacity
-        key={lottery.id}
+        key={lottery.lottery_id}
         style={styles.lotteryCard}
-        onPress={() => navigation.navigate('LotteryDetail', { lottery })}
+        onPress={() => navigation.navigate('LotteryGameDetail', { game: lottery })}
         activeOpacity={0.7}
       >
         {/* Status Indicator Dot */}
@@ -125,10 +124,10 @@ export default function DashboardScreen({ route, navigation }: Props) {
         </View>
 
         {/* Name */}
-        <Text style={styles.lotteryName} numberOfLines={2}>{lottery.name}</Text>
+        <Text style={styles.lotteryName} numberOfLines={2}>{lottery.lottery_name}</Text>
 
         {/* Price */}
-        <Text style={styles.lotteryPrice}>${lottery.price.toFixed(2)}</Text>
+        <Text style={styles.lotteryPrice}>${priceNum.toFixed(2)}</Text>
 
         {/* Progress Bar */}
         <View style={styles.progressBarContainer}>
@@ -148,9 +147,9 @@ export default function DashboardScreen({ route, navigation }: Props) {
         {/* Count */}
         <View style={styles.countRow}>
           <Text style={styles.countText}>
-            <Text style={styles.countCurrent}>{lottery.currentCount}</Text>
+            <Text style={styles.countCurrent}>{currentStock}</Text>
             <Text style={styles.countSeparator}>/</Text>
-            <Text style={styles.countTotal}>{lottery.totalCount}</Text>
+            <Text style={styles.countTotal}>{totalTickets}</Text>
           </Text>
           <Text style={[styles.stockStatus, { color: stockInfo.color }]}>
             {stockPercentage.toFixed(0)}%
@@ -202,7 +201,7 @@ export default function DashboardScreen({ route, navigation }: Props) {
         {/* Stats Summary */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{MOCK_SCRATCH_OFF_LOTTERIES.length}</Text>
+            <Text style={styles.statNumber}>{lotteries.length}</Text>
             <Text style={styles.statLabel}>Total Items</Text>
           </View>
           <View style={styles.statDivider} />
@@ -213,7 +212,11 @@ export default function DashboardScreen({ route, navigation }: Props) {
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>
-              {MOCK_SCRATCH_OFF_LOTTERIES.filter(l => (l.currentCount / l.totalCount) <= 0.2).length}
+              {lotteries.filter(l => {
+                const total = l.end_number - l.start_number + 1;
+                const current = Math.floor(total * 0.6);
+                return (current / total) <= 0.2;
+              }).length}
             </Text>
             <Text style={styles.statLabel}>Low Stock</Text>
           </View>
@@ -221,24 +224,43 @@ export default function DashboardScreen({ route, navigation }: Props) {
       </View>
 
       {/* Scrollable Content */}
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {filteredLotteries.length > 0 ? (
-          <View style={styles.gridContainer}>
-            {filteredLotteries.map(renderLotteryCard)}
-          </View>
-        ) : (
-          <View style={styles.emptyState}>
-            <Ionicons name="search-outline" size={64} color={colors.textMuted} />
-            <Text style={styles.emptyStateTitle}>No Results Found</Text>
-            <Text style={styles.emptyStateText}>
-              Try adjusting your search terms
-            </Text>
-          </View>
-        )}
-      </ScrollView>
+      {loading && !refreshing ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading lottery games...</Text>
+        </View>
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
+        >
+          {filteredLotteries.length > 0 ? (
+            <View style={styles.gridContainer}>
+              {filteredLotteries.map(renderLotteryCard)}
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="search-outline" size={64} color={colors.textMuted} />
+              <Text style={styles.emptyStateTitle}>
+                {lotteries.length === 0 ? 'No Lottery Games' : 'No Results Found'}
+              </Text>
+              <Text style={styles.emptyStateText}>
+                {lotteries.length === 0
+                  ? `No lottery games available for ${state || 'this state'} yet`
+                  : 'Try adjusting your search terms'}
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      )}
 
       {/* Fixed Floating Scan Button */}
       <TouchableOpacity
@@ -492,5 +514,15 @@ const createStyles = (colors: any, colorScheme: 'light' | 'dark' | null | undefi
     color: colors.white,
     marginTop: 2,
     textTransform: 'uppercase',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: colors.textSecondary,
   },
 });

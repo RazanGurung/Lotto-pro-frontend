@@ -1,9 +1,11 @@
-import React from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ScrollView, StatusBar } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ScrollView, StatusBar, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
+import { storeService } from '../services/api';
+import { useFocusEffect } from '@react-navigation/native';
 
 type StoreListScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'StoreList'>;
 
@@ -12,64 +14,78 @@ type Props = {
 };
 
 type Store = {
-  id: string;
-  name: string;
-  address: string;
-  activeTickets: number;
-  todaySales: number;
-  monthRevenue: number;
-  icon: string;
+  id: number;
+  owner_id: number;
+  store_name: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipcode?: string;
+  lottery_ac_no: string;
+  lottery_pw: string;
+  created_at: string;
+  updated_at?: string;
 };
-
-// Mock data - replace with API call
-const MOCK_STORES: Store[] = [
-  {
-    id: '1',
-    name: 'Downtown Store',
-    address: '123 Main St, City',
-    activeTickets: 5,
-    todaySales: 24,
-    monthRevenue: 15420,
-    icon: '🏪'
-  },
-  {
-    id: '2',
-    name: 'Westside Store',
-    address: '456 West Ave, City',
-    activeTickets: 3,
-    todaySales: 18,
-    monthRevenue: 12350,
-    icon: '🏬'
-  },
-  {
-    id: '3',
-    name: 'Eastside Store',
-    address: '789 East Blvd, City',
-    activeTickets: 4,
-    todaySales: 31,
-    monthRevenue: 18900,
-    icon: '🏢'
-  },
-  {
-    id: '4',
-    name: 'North Branch',
-    address: '321 North Rd, City',
-    activeTickets: 6,
-    todaySales: 42,
-    monthRevenue: 21500,
-    icon: '🏛️'
-  },
-];
 
 export default function StoreListScreen({ navigation }: Props) {
   const colors = useTheme();
   const styles = createStyles(colors);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const handleStorePress = (store: Store) => {
-    navigation.navigate('Dashboard', { storeId: store.id, storeName: store.name });
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchStores();
+    }, [])
+  );
+
+  const fetchStores = async () => {
+    try {
+      setLoading(true);
+      const result = await storeService.getStores();
+
+      if (result.success && result.data) {
+        // API might return stores in result.data.stores or directly in result.data
+        const storesData = Array.isArray(result.data) ? result.data : result.data.stores || [];
+        setStores(storesData);
+      } else {
+        // Silently handle error - just show empty state
+        setStores([]);
+      }
+    } catch (error) {
+      // Silently handle error - just show empty state
+      setStores([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const renderStoreItem = ({ item }: { item: Store }) => (
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchStores();
+    setRefreshing(false);
+  };
+
+  const handleStorePress = (store: Store) => {
+    navigation.navigate('Dashboard', {
+      storeId: store.id.toString(),
+      storeName: store.store_name,
+      state: store.state || ''
+    });
+  };
+
+  const formatAddress = (store: Store) => {
+    const parts = [store.address, store.city, store.state, store.zipcode].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : 'No address provided';
+  };
+
+  const getStoreIcon = (index: number) => {
+    const icons = ['🏪', '🏬', '🏢', '🏛️', '🏦', '🏭'];
+    return icons[index % icons.length];
+  };
+
+  const renderStoreItem = ({ item, index }: { item: Store; index: number }) => (
     <TouchableOpacity
       style={styles.storeCard}
       onPress={() => handleStorePress(item)}
@@ -77,11 +93,11 @@ export default function StoreListScreen({ navigation }: Props) {
     >
       <View style={styles.cardHeader}>
         <View style={styles.storeIconContainer}>
-          <Text style={styles.storeIcon}>{item.icon}</Text>
+          <Text style={styles.storeIcon}>{getStoreIcon(index)}</Text>
         </View>
         <View style={styles.storeInfo}>
-          <Text style={styles.storeName}>{item.name}</Text>
-          <Text style={styles.storeAddress}>{item.address}</Text>
+          <Text style={styles.storeName}>{item.store_name}</Text>
+          <Text style={styles.storeAddress}>{formatAddress(item)}</Text>
         </View>
         <View style={styles.arrowContainer}>
           <Text style={styles.arrowText}>›</Text>
@@ -90,36 +106,34 @@ export default function StoreListScreen({ navigation }: Props) {
 
       <View style={styles.statsContainer}>
         <View style={styles.statBox}>
-          <Text style={styles.statValue}>${(item.monthRevenue / 1000).toFixed(1)}k</Text>
-          <Text style={styles.statLabel}>Month Revenue</Text>
+          <Text style={styles.statValue}>••••{item.lottery_ac_no.slice(-4)}</Text>
+          <Text style={styles.statLabel}>Account No.</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statBox}>
-          <Text style={styles.statValue}>{item.todaySales}</Text>
-          <Text style={styles.statLabel}>Today's Sales</Text>
+          <Text style={styles.statValue}>{new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+          <Text style={styles.statLabel}>Created</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statBox}>
           <View style={styles.activeBadge}>
-            <Text style={styles.activeBadgeText}>{item.activeTickets}</Text>
+            <Text style={styles.activeBadgeText}>✓</Text>
           </View>
-          <Text style={styles.statLabel}>Active Types</Text>
+          <Text style={styles.statLabel}>Active</Text>
         </View>
       </View>
     </TouchableOpacity>
   );
 
   const renderHeader = () => {
-    const totalStores = MOCK_STORES.length;
-    const totalRevenue = MOCK_STORES.reduce((sum, store) => sum + store.monthRevenue, 0);
-    const totalSales = MOCK_STORES.reduce((sum, store) => sum + store.todaySales, 0);
+    const totalStores = stores.length;
 
     return (
       <View style={styles.headerSection}>
         <View style={styles.topBar}>
           <View>
             <Text style={styles.greeting}>Welcome back! 👋</Text>
-            <Text style={styles.subtitle}>Here's your business overview</Text>
+            <Text style={styles.subtitle}>Manage your lottery stores</Text>
           </View>
         </View>
 
@@ -129,12 +143,14 @@ export default function StoreListScreen({ navigation }: Props) {
             <Text style={styles.overviewLabel} adjustsFontSizeToFit numberOfLines={2}>Total Stores</Text>
           </View>
           <View style={[styles.overviewCard, { backgroundColor: colors.secondary + '15' }]}>
-            <Text style={styles.overviewValue} adjustsFontSizeToFit numberOfLines={1}>${(totalRevenue / 1000).toFixed(1)}k</Text>
-            <Text style={styles.overviewLabel} adjustsFontSizeToFit numberOfLines={2}>Month Revenue</Text>
+            <Text style={styles.overviewValue} adjustsFontSizeToFit numberOfLines={1}>{stores.filter(s => s.lottery_ac_no).length}</Text>
+            <Text style={styles.overviewLabel} adjustsFontSizeToFit numberOfLines={2}>Active Accounts</Text>
           </View>
           <View style={[styles.overviewCard, { backgroundColor: colors.accent + '15' }]}>
-            <Text style={styles.overviewValue} adjustsFontSizeToFit numberOfLines={1}>{totalSales}</Text>
-            <Text style={styles.overviewLabel} adjustsFontSizeToFit numberOfLines={2}>Today's Sales</Text>
+            <Text style={styles.overviewValue} adjustsFontSizeToFit numberOfLines={1}>
+              {stores.length > 0 ? new Date(Math.max(...stores.map(s => new Date(s.created_at).getTime()))).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-'}
+            </Text>
+            <Text style={styles.overviewLabel} adjustsFontSizeToFit numberOfLines={2}>Latest Store</Text>
           </View>
         </View>
 
@@ -151,17 +167,37 @@ export default function StoreListScreen({ navigation }: Props) {
     </View>
   );
 
+  if (loading && !refreshing) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+        <StatusBar barStyle={colors === useTheme() && colors.background === '#F5F5F5' ? 'dark-content' : 'light-content'} backgroundColor={colors.background} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading stores...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle={colors === useTheme() && colors.background === '#F5F5F5' ? 'dark-content' : 'light-content'} backgroundColor={colors.background} />
       <FlatList
-        data={MOCK_STORES}
+        data={stores}
         renderItem={renderStoreItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id.toString()}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmptyState}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
       />
     </SafeAreaView>
   );
@@ -171,6 +207,16 @@ const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: colors.textSecondary,
   },
   listContainer: {
     paddingBottom: 20,
