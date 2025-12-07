@@ -1,0 +1,626 @@
+/**
+ * Store Lottery Dashboard Screen
+ * Displays lottery inventory, sales, and stock levels for a specific store
+ */
+
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  RefreshControl,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RouteProp, useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import { RootStackParamList } from '../navigation/AppNavigator';
+import { useTheme } from '../contexts/ThemeContext';
+import { ticketService } from '../services/api';
+import { getUserFriendlyError } from '../utils/errors';
+
+type StoreLotteryDashboardNavigationProp = NativeStackNavigationProp<RootStackParamList, 'StoreLotteryDashboard'>;
+type StoreLotteryDashboardRouteProp = RouteProp<RootStackParamList, 'StoreLotteryDashboard'>;
+
+type Props = {
+  navigation: StoreLotteryDashboardNavigationProp;
+  route: StoreLotteryDashboardRouteProp;
+};
+
+interface LotteryInventory {
+  lottery_game_number: string;
+  lottery_game_name: string;
+  total_packs: number;
+  total_tickets: number;
+  price: number;
+  total_value: number;
+  last_scanned: string;
+}
+
+interface RecentTicket {
+  ticket_id: number;
+  lottery_game_name: string;
+  lottery_game_number: string;
+  pack_number: string;
+  ticket_number: string;
+  scanned_at: string;
+  price: number;
+}
+
+interface DashboardStats {
+  total_inventory_value: number;
+  total_games: number;
+  total_packs: number;
+  total_tickets: number;
+  last_updated: string;
+}
+
+export default function StoreLotteryDashboardScreen({ navigation, route }: Props) {
+  const colors = useTheme();
+  const styles = createStyles(colors);
+  const { storeId, storeName } = route.params;
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [inventory, setInventory] = useState<LotteryInventory[]>([]);
+  const [recentTickets, setRecentTickets] = useState<RecentTicket[]>([]);
+  const [stats, setStats] = useState<DashboardStats>({
+    total_inventory_value: 0,
+    total_games: 0,
+    total_packs: 0,
+    total_tickets: 0,
+    last_updated: new Date().toISOString(),
+  });
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchDashboardData();
+    }, [storeId])
+  );
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const result = await ticketService.getTickets(storeId);
+
+      if (result.success && result.data) {
+        processTicketData(result.data);
+      } else {
+        // Show empty state
+        setInventory([]);
+        setRecentTickets([]);
+      }
+    } catch (error) {
+      Alert.alert('Error', getUserFriendlyError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const processTicketData = (tickets: any[]) => {
+    // Group tickets by lottery game
+    const gameMap = new Map<string, LotteryInventory>();
+    const recent: RecentTicket[] = [];
+
+    tickets.forEach((ticket) => {
+      const gameNumber = ticket.lottery_game_number;
+
+      if (!gameMap.has(gameNumber)) {
+        gameMap.set(gameNumber, {
+          lottery_game_number: gameNumber,
+          lottery_game_name: ticket.lottery_game_name,
+          total_packs: 0,
+          total_tickets: 0,
+          price: ticket.price || 0,
+          total_value: 0,
+          last_scanned: ticket.scanned_at,
+        });
+      }
+
+      const game = gameMap.get(gameNumber)!;
+      game.total_tickets += 1;
+      game.total_value = game.total_tickets * game.price;
+
+      // Update last scanned if this ticket is more recent
+      if (new Date(ticket.scanned_at) > new Date(game.last_scanned)) {
+        game.last_scanned = ticket.scanned_at;
+      }
+
+      // Track unique packs
+      const packNumbers = new Set<string>();
+      tickets
+        .filter((t) => t.lottery_game_number === gameNumber)
+        .forEach((t) => packNumbers.add(t.pack_number));
+      game.total_packs = packNumbers.size;
+    });
+
+    // Get recent tickets (last 10)
+    const sortedTickets = [...tickets].sort(
+      (a, b) => new Date(b.scanned_at).getTime() - new Date(a.scanned_at).getTime()
+    );
+    const recentData = sortedTickets.slice(0, 10).map((ticket) => ({
+      ticket_id: ticket.ticket_id || Math.random(),
+      lottery_game_name: ticket.lottery_game_name,
+      lottery_game_number: ticket.lottery_game_number,
+      pack_number: ticket.pack_number,
+      ticket_number: ticket.ticket_number,
+      scanned_at: ticket.scanned_at,
+      price: ticket.price || 0,
+    }));
+
+    const inventoryData = Array.from(gameMap.values());
+
+    // Calculate stats
+    const totalValue = inventoryData.reduce((sum, game) => sum + game.total_value, 0);
+    const totalPacks = inventoryData.reduce((sum, game) => sum + game.total_packs, 0);
+    const totalTickets = inventoryData.reduce((sum, game) => sum + game.total_tickets, 0);
+
+    setInventory(inventoryData);
+    setRecentTickets(recentData);
+    setStats({
+      total_inventory_value: totalValue,
+      total_games: inventoryData.length,
+      total_packs: totalPacks,
+      total_tickets: totalTickets,
+      last_updated: new Date().toISOString(),
+    });
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchDashboardData();
+    setRefreshing(false);
+  };
+
+  const handleScanTicket = () => {
+    navigation.navigate('ScanTicket', {
+      storeId,
+      storeName
+    });
+  };
+
+  const formatCurrency = (amount: number) => {
+    return `$${amount.toFixed(2)}`;
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading inventory...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerTextContainer}>
+          <Text style={styles.headerTitle}>{storeName}</Text>
+          <Text style={styles.headerSubtitle}>Scanned Tickets Inventory</Text>
+        </View>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Ionicons name="close" size={28} color={colors.textLight} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        style={styles.container}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
+        }
+      >
+        {/* Stats Cards */}
+        <View style={styles.statsGrid}>
+          <View style={[styles.statCard, styles.statCardPrimary]}>
+            <Ionicons name="cash-outline" size={32} color={colors.primary} />
+            <Text style={styles.statValue}>{formatCurrency(stats.total_inventory_value)}</Text>
+            <Text style={styles.statLabel}>Total Inventory Value</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Ionicons name="game-controller-outline" size={28} color={colors.secondary} />
+            <Text style={styles.statValue}>{stats.total_games}</Text>
+            <Text style={styles.statLabel}>Lottery Games</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Ionicons name="albums-outline" size={28} color={colors.accentOrange} />
+            <Text style={styles.statValue}>{stats.total_packs}</Text>
+            <Text style={styles.statLabel}>Total Packs</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Ionicons name="ticket-outline" size={28} color={colors.accentPurple} />
+            <Text style={styles.statValue}>{stats.total_tickets}</Text>
+            <Text style={styles.statLabel}>Total Tickets</Text>
+          </View>
+        </View>
+
+        {/* Quick Action Button */}
+        <TouchableOpacity style={styles.scanButton} onPress={handleScanTicket}>
+          <Ionicons name="scan" size={24} color={colors.white} />
+          <Text style={styles.scanButtonText}>Scan New Ticket</Text>
+        </TouchableOpacity>
+
+        {/* Inventory by Game */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Inventory by Game</Text>
+
+          {inventory.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="cube-outline" size={64} color={colors.textMuted} />
+              <Text style={styles.emptyStateTitle}>No Inventory Yet</Text>
+              <Text style={styles.emptyStateText}>
+                Start scanning lottery tickets to build your inventory
+              </Text>
+              <TouchableOpacity style={styles.emptyStateButton} onPress={handleScanTicket}>
+                <Text style={styles.emptyStateButtonText}>Scan First Ticket</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            inventory.map((game, index) => (
+              <View key={index} style={styles.inventoryCard}>
+                <View style={styles.inventoryHeader}>
+                  <View style={styles.inventoryIcon}>
+                    <Ionicons name="ticket" size={24} color={colors.primary} />
+                  </View>
+                  <View style={styles.inventoryInfo}>
+                    <Text style={styles.inventoryGameName}>{game.lottery_game_name}</Text>
+                    <Text style={styles.inventoryGameNumber}>#{game.lottery_game_number}</Text>
+                  </View>
+                  <View style={styles.inventoryValue}>
+                    <Text style={styles.inventoryPrice}>{formatCurrency(game.total_value)}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.inventoryStats}>
+                  <View style={styles.inventoryStat}>
+                    <Text style={styles.inventoryStatValue}>{game.total_packs}</Text>
+                    <Text style={styles.inventoryStatLabel}>Packs</Text>
+                  </View>
+                  <View style={styles.inventoryStatDivider} />
+                  <View style={styles.inventoryStat}>
+                    <Text style={styles.inventoryStatValue}>{game.total_tickets}</Text>
+                    <Text style={styles.inventoryStatLabel}>Tickets</Text>
+                  </View>
+                  <View style={styles.inventoryStatDivider} />
+                  <View style={styles.inventoryStat}>
+                    <Text style={styles.inventoryStatValue}>{formatCurrency(game.price)}</Text>
+                    <Text style={styles.inventoryStatLabel}>Per Ticket</Text>
+                  </View>
+                </View>
+
+                <View style={styles.inventoryFooter}>
+                  <Ionicons name="time-outline" size={14} color={colors.textMuted} />
+                  <Text style={styles.inventoryLastScanned}>
+                    Last scanned {formatDate(game.last_scanned)}
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+
+        {/* Recent Activity */}
+        {recentTickets.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Recent Scans</Text>
+
+            {recentTickets.map((ticket, index) => (
+              <View key={index} style={styles.activityCard}>
+                <View style={styles.activityIcon}>
+                  <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                </View>
+                <View style={styles.activityInfo}>
+                  <Text style={styles.activityGame}>{ticket.lottery_game_name}</Text>
+                  <Text style={styles.activityDetails}>
+                    Pack {ticket.pack_number} • Ticket {ticket.ticket_number}
+                  </Text>
+                </View>
+                <View style={styles.activityMeta}>
+                  <Text style={styles.activityPrice}>{formatCurrency(ticket.price)}</Text>
+                  <Text style={styles.activityTime}>{formatDate(ticket.scanned_at)}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Bottom Spacing */}
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.primary,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: colors.primary,
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+    },
+    headerTextContainer: {
+      flex: 1,
+      marginRight: 12,
+    },
+    headerTitle: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      color: colors.textLight,
+      marginBottom: 4,
+    },
+    headerSubtitle: {
+      fontSize: 13,
+      color: colors.textLight,
+      opacity: 0.85,
+    },
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.background,
+    },
+    loadingText: {
+      marginTop: 16,
+      fontSize: 16,
+      color: colors.textSecondary,
+    },
+    statsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      padding: 12,
+      gap: 12,
+    },
+    statCard: {
+      flex: 1,
+      minWidth: '45%',
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 16,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    statCardPrimary: {
+      backgroundColor: colors.primary + '15',
+      borderColor: colors.primary + '30',
+    },
+    statValue: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      color: colors.textPrimary,
+      marginTop: 8,
+    },
+    statLabel: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 4,
+      textAlign: 'center',
+    },
+    scanButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.secondary,
+      marginHorizontal: 20,
+      marginVertical: 12,
+      padding: 18,
+      borderRadius: 12,
+      gap: 12,
+      shadowColor: colors.black,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.15,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    scanButtonText: {
+      fontSize: 17,
+      fontWeight: 'bold',
+      color: colors.white,
+    },
+    section: {
+      padding: 20,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: colors.textPrimary,
+      marginBottom: 16,
+    },
+    inventoryCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    inventoryHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    inventoryIcon: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: colors.primary + '15',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 12,
+    },
+    inventoryInfo: {
+      flex: 1,
+    },
+    inventoryGameName: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    inventoryGameNumber: {
+      fontSize: 13,
+      color: colors.textSecondary,
+    },
+    inventoryValue: {
+      alignItems: 'flex-end',
+    },
+    inventoryPrice: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: colors.success,
+    },
+    inventoryStats: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      borderTopWidth: 1,
+      borderBottomWidth: 1,
+      borderColor: colors.border,
+    },
+    inventoryStat: {
+      flex: 1,
+      alignItems: 'center',
+    },
+    inventoryStatValue: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    inventoryStatLabel: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    inventoryStatDivider: {
+      width: 1,
+      height: 32,
+      backgroundColor: colors.border,
+    },
+    inventoryFooter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 12,
+      gap: 6,
+    },
+    inventoryLastScanned: {
+      fontSize: 12,
+      color: colors.textMuted,
+    },
+    activityCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: 10,
+      padding: 14,
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    activityIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.success + '15',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 12,
+    },
+    activityInfo: {
+      flex: 1,
+    },
+    activityGame: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    activityDetails: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    activityMeta: {
+      alignItems: 'flex-end',
+    },
+    activityPrice: {
+      fontSize: 14,
+      fontWeight: 'bold',
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    activityTime: {
+      fontSize: 11,
+      color: colors.textMuted,
+    },
+    emptyState: {
+      alignItems: 'center',
+      paddingVertical: 48,
+    },
+    emptyStateTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      marginTop: 16,
+      marginBottom: 8,
+    },
+    emptyStateText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginBottom: 24,
+      paddingHorizontal: 32,
+    },
+    emptyStateButton: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: 24,
+      paddingVertical: 12,
+      borderRadius: 8,
+    },
+    emptyStateButtonText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: colors.white,
+    },
+    bottomSpacing: {
+      height: 40,
+    },
+  });

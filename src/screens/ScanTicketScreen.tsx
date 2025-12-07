@@ -8,6 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
 import { decodeBarcode, formatDecodedData } from '../utils/barcodeDecoder';
+import { ticketService } from '../services/api';
+import { getUserFriendlyError } from '../utils/errors';
 
 type ScanTicketScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ScanTicket'>;
 type ScanTicketScreenRouteProp = RouteProp<RootStackParamList, 'ScanTicket'>;
@@ -20,22 +22,32 @@ type Props = {
 export default function ScanTicketScreen({ navigation, route }: Props) {
   const colors = useTheme();
   const styles = createStyles(colors);
-  const { storeName } = route.params;
+  const { storeId, storeName } = route.params;
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualBarcode, setManualBarcode] = useState('');
+  const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
+  const [saving, setSaving] = useState(false);
   const scanningRef = useRef(false);
   const lastScannedData = useRef<string>('');
   const scanTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const getCameraPermissions = async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === 'granted');
+    const checkCameraPermissions = async () => {
+      const { status } = await Camera.getCameraPermissionsAsync();
+
+      if (status === 'granted') {
+        setHasPermission(true);
+      } else if (status === 'undetermined') {
+        // Show custom prompt before system dialog
+        setShowPermissionPrompt(true);
+      } else {
+        setHasPermission(false);
+      }
     };
 
-    getCameraPermissions();
+    checkCameraPermissions();
 
     // Cleanup timeout on unmount
     return () => {
@@ -44,6 +56,12 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
       }
     };
   }, []);
+
+  const requestCameraPermission = async () => {
+    setShowPermissionPrompt(false);
+    const { status } = await Camera.requestCameraPermissionsAsync();
+    setHasPermission(status === 'granted');
+  };
 
   const handleBarCodeScanned = ({ type, data }: { type: string; data: string }) => {
     // Prevent multiple scans using ref (faster than state)
@@ -115,7 +133,7 @@ Please scan the INFORMATION BARCODE (not the price barcode).
 
     Alert.alert(
       '✓ Ticket Scanned Successfully',
-      `${formattedInfo}\n\n━━━━━━━━━━━━━━━━━\nBarcode Type: ${type}\nRaw Data: ${decoded.raw}\n\n⚠️ Please verify the ticket number matches the physical ticket before confirming.\n\nInventory has been updated!`,
+      `${formattedInfo}\n\n━━━━━━━━━━━━━━━━━\nBarcode Type: ${type}\nRaw Data: ${decoded.raw}\n\n⚠️ Please verify the ticket number matches the physical ticket before confirming.`,
       [
         {
           text: 'Scan Again',
@@ -123,17 +141,58 @@ Please scan the INFORMATION BARCODE (not the price barcode).
           style: 'cancel',
         },
         {
-          text: 'Confirm',
-          onPress: () => {
-            // TODO: Actually save to backend here
-            navigation.goBack();
-          },
+          text: 'Confirm & Save',
+          onPress: () => saveTicketToInventory(decoded),
         },
       ]
     );
+  };
 
-    // TODO: Update backend/database with the decoded ticket info
-    // updateTicketInventory(decoded);
+  const saveTicketToInventory = async (decoded: any) => {
+    try {
+      setSaving(true);
+
+      const result = await ticketService.saveTicket({
+        store_id: parseInt(storeId, 10),
+        lottery_game_number: decoded.gameNumber || decoded.raw.substring(0, 3),
+        lottery_game_name: decoded.gameName || 'Unknown Game',
+        pack_number: decoded.packNumber || '000',
+        ticket_number: decoded.ticketNumber || decoded.raw,
+        barcode_raw: decoded.raw,
+        scanned_at: new Date().toISOString(),
+        price: decoded.price || 0,
+      });
+
+      if (result.success) {
+        Alert.alert(
+          'Success',
+          'Ticket added to inventory successfully!',
+          [
+            {
+              text: 'Scan Another',
+              onPress: () => resetScanner(),
+            },
+            {
+              text: 'View Inventory',
+              onPress: () => {
+                navigation.replace('StoreLotteryDashboard', {
+                  storeId: parseInt(storeId, 10),
+                  storeName
+                });
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Error', result.error || 'Failed to save ticket to inventory');
+        resetScanner();
+      }
+    } catch (error) {
+      Alert.alert('Error', getUserFriendlyError(error));
+      resetScanner();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const resetScanner = () => {
@@ -169,11 +228,15 @@ Please scan the INFORMATION BARCODE (not the price barcode).
 
     Alert.alert(
       '✓ Ticket Entered Successfully',
-      `${formattedInfo}\n\n━━━━━━━━━━━━━━━━━\nManually Entered\nRaw Data: ${decoded.raw}\n\nInventory has been updated!`,
+      `${formattedInfo}\n\n━━━━━━━━━━━━━━━━━\nManually Entered\nRaw Data: ${decoded.raw}`,
       [
         {
-          text: 'Done',
-          onPress: () => navigation.goBack(),
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Save to Inventory',
+          onPress: () => saveTicketToInventory(decoded),
         },
       ]
     );
@@ -182,7 +245,11 @@ Please scan the INFORMATION BARCODE (not the price barcode).
   if (hasPermission === null) {
     return (
       <View style={styles.container}>
-        <Text style={styles.message}>Requesting camera permission...</Text>
+        <View style={styles.permissionContainer}>
+          <Ionicons name="camera-outline" size={64} color={colors.textMuted} />
+          <Text style={styles.message}>Requesting Camera Access...</Text>
+          <Text style={styles.submessage}>Please allow camera permission to scan lottery tickets</Text>
+        </View>
       </View>
     );
   }
@@ -190,11 +257,22 @@ Please scan the INFORMATION BARCODE (not the price barcode).
   if (hasPermission === false) {
     return (
       <View style={styles.container}>
-        <Text style={styles.message}>No access to camera</Text>
-        <Text style={styles.submessage}>Please enable camera permissions in your device settings</Text>
-        <TouchableOpacity style={styles.button} onPress={() => navigation.goBack()}>
-          <Text style={styles.buttonText}>Go Back</Text>
-        </TouchableOpacity>
+        <View style={styles.permissionContainer}>
+          <Ionicons name="lock-closed-outline" size={64} color={colors.error} />
+          <Text style={styles.message}>Camera Access Required</Text>
+          <Text style={styles.submessage}>
+            Lottery Pro needs camera access to scan lottery ticket barcodes and manage your inventory efficiently.
+          </Text>
+          <Text style={styles.instructionText}>
+            To enable camera access:
+          </Text>
+          <Text style={styles.stepText}>1. Go to your device Settings</Text>
+          <Text style={styles.stepText}>2. Find "Lottery Pro" in app list</Text>
+          <Text style={styles.stepText}>3. Enable Camera permission</Text>
+          <TouchableOpacity style={styles.button} onPress={() => navigation.goBack()}>
+            <Text style={styles.buttonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -308,6 +386,63 @@ Please scan the INFORMATION BARCODE (not the price barcode).
                 <Text style={styles.submitButtonText}>Submit</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Camera Permission Prompt Modal */}
+      <Modal
+        visible={showPermissionPrompt}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => {
+          setShowPermissionPrompt(false);
+          navigation.goBack();
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.permissionModalContent}>
+            <View style={styles.permissionIconContainer}>
+              <Ionicons name="camera" size={72} color={colors.primary} />
+            </View>
+
+            <Text style={styles.permissionModalTitle}>Camera Access Required</Text>
+
+            <Text style={styles.permissionModalDescription}>
+              Lottery Pro needs access to your camera to scan lottery ticket barcodes quickly and accurately.
+            </Text>
+
+            <View style={styles.permissionFeatures}>
+              <View style={styles.permissionFeature}>
+                <Ionicons name="scan" size={24} color={colors.primary} />
+                <Text style={styles.permissionFeatureText}>Scan tickets instantly</Text>
+              </View>
+              <View style={styles.permissionFeature}>
+                <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
+                <Text style={styles.permissionFeatureText}>Manage inventory efficiently</Text>
+              </View>
+              <View style={styles.permissionFeature}>
+                <Ionicons name="shield-checkmark" size={24} color={colors.primary} />
+                <Text style={styles.permissionFeatureText}>Your privacy is protected</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.allowButton}
+              onPress={requestCameraPermission}
+            >
+              <Text style={styles.allowButtonText}>Allow Camera Access</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.denyButton}
+              onPress={() => {
+                setShowPermissionPrompt(false);
+                navigation.goBack();
+              }}
+            >
+              <Text style={styles.denyButtonText}>Not Now</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -510,18 +645,42 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  permissionContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
   message: {
-    fontSize: 18,
+    fontSize: 20,
+    fontWeight: 'bold',
     color: colors.textPrimary,
     textAlign: 'center',
-    marginBottom: 10,
+    marginTop: 20,
+    marginBottom: 12,
   },
   submessage: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+    paddingHorizontal: 20,
+  },
+  instructionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  stepText: {
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
-    opacity: 0.7,
-    marginBottom: 20,
+    marginBottom: 8,
+    paddingHorizontal: 32,
   },
   button: {
     backgroundColor: colors.primary,
@@ -529,10 +688,90 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginHorizontal: 40,
+    marginTop: 24,
+    minWidth: 200,
   },
   buttonText: {
     color: colors.white,
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  permissionModalContent: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 28,
+    width: '90%',
+    maxWidth: 400,
+    alignItems: 'center',
+  },
+  permissionIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  permissionModalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  permissionModalDescription: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  permissionFeatures: {
+    width: '100%',
+    marginBottom: 28,
+  },
+  permissionFeature: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  permissionFeatureText: {
+    fontSize: 15,
+    color: colors.textPrimary,
+    marginLeft: 16,
+    fontWeight: '500',
+  },
+  allowButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  allowButtonText: {
+    color: colors.white,
+    fontSize: 17,
+    fontWeight: 'bold',
+  },
+  denyButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    width: '100%',
+    alignItems: 'center',
+  },
+  denyButtonText: {
+    color: colors.textMuted,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

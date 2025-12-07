@@ -6,7 +6,7 @@ import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
-import { lotteryService } from '../services/api';
+import { lotteryService, ticketService } from '../services/api';
 import { useFocusEffect } from '@react-navigation/native';
 
 type DashboardScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
@@ -37,13 +37,18 @@ type Lottery = {
   };
 };
 
+interface InventoryCount {
+  [gameNumber: string]: number; // gameNumber -> ticket count
+}
+
 export default function DashboardScreen({ route, navigation }: Props) {
   const colors = useTheme();
   const colorScheme = useColorScheme();
   const styles = createStyles(colors, colorScheme);
-  const { storeName, state } = route.params;
+  const { storeId, storeName, state } = route.params;
   const [searchQuery, setSearchQuery] = useState('');
   const [lotteries, setLotteries] = useState<Lottery[]>([]);
+  const [inventoryCounts, setInventoryCounts] = useState<InventoryCount>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -56,18 +61,56 @@ export default function DashboardScreen({ route, navigation }: Props) {
   const fetchLotteries = async () => {
     try {
       setLoading(true);
-      const result = await lotteryService.getLotteries();
 
-      if (result.success && result.data) {
-        const lotteriesData = Array.isArray(result.data) ? result.data : result.data.lotteries || [];
-        // Filter by state
-        const stateLotteries = lotteriesData.filter((lot: Lottery) => lot.state === state);
-        setLotteries(stateLotteries);
+      console.log('🔍 DEBUG: Fetching lotteries for state:', state);
+      console.log('🔍 DEBUG: Store ID:', storeId);
+
+      // Fetch both lotteries and inventory in parallel
+      // Using getPublicLotteries (no super admin required) instead of getLotteries
+      const [lotteriesResult, inventoryResult] = await Promise.all([
+        lotteryService.getPublicLotteries(state),
+        ticketService.getTickets(parseInt(storeId, 10))
+      ]);
+
+      console.log('📊 DEBUG: Lotteries result:', JSON.stringify(lotteriesResult, null, 2));
+      console.log('📦 DEBUG: Inventory result:', JSON.stringify(inventoryResult, null, 2));
+
+      // Process lotteries - already filtered by state from backend
+      if (lotteriesResult.success && lotteriesResult.data) {
+        const lotteriesData = Array.isArray(lotteriesResult.data)
+          ? lotteriesResult.data
+          : lotteriesResult.data.lotteries || [];
+
+        console.log('📋 DEBUG: Total lotteries received:', lotteriesData.length);
+        console.log('📋 DEBUG: Sample lottery:', lotteriesData[0]);
+
+        setLotteries(lotteriesData);
       } else {
+        console.log('❌ DEBUG: Lotteries result not successful or no data');
+        console.log('❌ DEBUG: Error:', lotteriesResult.error);
         setLotteries([]);
       }
+
+      // Process inventory counts
+      if (inventoryResult.success && inventoryResult.data) {
+        const tickets = Array.isArray(inventoryResult.data) ? inventoryResult.data : [];
+        const counts: InventoryCount = {};
+
+        tickets.forEach((ticket: any) => {
+          const gameNumber = ticket.lottery_game_number;
+          counts[gameNumber] = (counts[gameNumber] || 0) + 1;
+        });
+
+        console.log('📦 DEBUG: Inventory counts:', counts);
+        setInventoryCounts(counts);
+      } else {
+        console.log('❌ DEBUG: Inventory result not successful or no data');
+        setInventoryCounts({});
+      }
     } catch (error) {
+      console.log('❌ DEBUG: Error in fetchLotteries:', error);
       setLotteries([]);
+      setInventoryCounts({});
     } finally {
       setLoading(false);
     }
@@ -103,9 +146,23 @@ export default function DashboardScreen({ route, navigation }: Props) {
 
   const renderLotteryCard = (lottery: Lottery) => {
     const totalTickets = lottery.end_number - lottery.start_number + 1;
-    const currentStock = Math.floor(totalTickets * 0.6); // Mock current stock
-    const stockInfo = getStockStatus(lottery.start_number, lottery.end_number);
-    const stockPercentage = (currentStock / totalTickets) * 100;
+
+    // Get REAL inventory count for this game
+    const currentStock = inventoryCounts[lottery.lottery_number] || 0;
+    const stockPercentage = totalTickets > 0 ? (currentStock / totalTickets) * 100 : 0;
+
+    // Determine stock status based on actual inventory
+    let stockInfo;
+    if (currentStock === 0) {
+      stockInfo = { status: 'sold-out', color: colors.error, label: 'No Stock' };
+    } else if (stockPercentage <= 20) {
+      stockInfo = { status: 'low', color: colors.warning, label: 'Low Stock' };
+    } else if (stockPercentage <= 50) {
+      stockInfo = { status: 'medium', color: colors.accentOrange, label: 'Medium Stock' };
+    } else {
+      stockInfo = { status: 'good', color: colors.success, label: 'In Stock' };
+    }
+
     const priceNum = parseFloat(lottery.price);
 
     return (
@@ -144,16 +201,25 @@ export default function DashboardScreen({ route, navigation }: Props) {
           </View>
         </View>
 
-        {/* Count */}
-        <View style={styles.countRow}>
-          <Text style={styles.countText}>
-            <Text style={styles.countCurrent}>{currentStock}</Text>
-            <Text style={styles.countSeparator}>/</Text>
-            <Text style={styles.countTotal}>{totalTickets}</Text>
-          </Text>
-          <Text style={[styles.stockStatus, { color: stockInfo.color }]}>
-            {stockPercentage.toFixed(0)}%
-          </Text>
+        {/* Stock Info */}
+        <View style={styles.stockInfoContainer}>
+          <View style={styles.stockRow}>
+            <Ionicons name="cube-outline" size={14} color={colors.textSecondary} />
+            <Text style={styles.stockLabel}>Your Stock: </Text>
+            <Text style={[styles.stockValue, { color: stockInfo.color }]}>
+              {currentStock === 0 ? 'None' : `${currentStock} tickets`}
+            </Text>
+          </View>
+          {currentStock > 0 && (
+            <Text style={styles.stockPercentage}>
+              {stockPercentage.toFixed(0)}% of capacity
+            </Text>
+          )}
+          {currentStock === 0 && (
+            <Text style={[styles.noStockText, { color: colors.error }]}>
+              Tap to scan or order
+            </Text>
+          )}
         </View>
       </TouchableOpacity>
     );
@@ -171,7 +237,7 @@ export default function DashboardScreen({ route, navigation }: Props) {
         <View style={styles.headerTop}>
           <View style={styles.headerLeft}>
             <Text style={styles.headerTitle}>{storeName}</Text>
-            <Text style={styles.headerSubtitle}>Lottery Inventory Management</Text>
+            <Text style={styles.headerSubtitle}>Available Lottery Games - {state}</Text>
           </View>
           <TouchableOpacity
             style={styles.reportButton}
@@ -213,13 +279,20 @@ export default function DashboardScreen({ route, navigation }: Props) {
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>
               {lotteries.filter(l => {
-                const total = l.end_number - l.start_number + 1;
-                const current = Math.floor(total * 0.6);
-                return (current / total) <= 0.2;
+                const stock = inventoryCounts[l.lottery_number] || 0;
+                return stock === 0;
               }).length}
             </Text>
-            <Text style={styles.statLabel}>Low Stock</Text>
+            <Text style={styles.statLabel}>No Stock</Text>
           </View>
+        </View>
+
+        {/* Info Banner */}
+        <View style={styles.infoBanner}>
+          <Ionicons name="information-circle" size={16} color={colors.primary} />
+          <Text style={styles.infoBannerText}>
+            Shows available games with your real scanned inventory
+          </Text>
         </View>
       </View>
 
@@ -447,32 +520,47 @@ const createStyles = (colors: any, colorScheme: 'light' | 'dark' | null | undefi
     height: '100%',
     borderRadius: 3,
   },
-  countRow: {
+  stockInfoContainer: {
+    marginTop: 8,
+  },
+  stockRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 4,
   },
-  countText: {
-    fontSize: 13,
-  },
-  countCurrent: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-  },
-  countSeparator: {
-    fontSize: 13,
-    color: colors.textMuted,
-    fontWeight: '600',
-  },
-  countTotal: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  stockStatus: {
+  stockLabel: {
     fontSize: 12,
-    fontWeight: '700',
+    color: colors.textSecondary,
+    marginLeft: 4,
+  },
+  stockValue: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  stockPercentage: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginLeft: 18,
+  },
+  noStockText: {
+    fontSize: 11,
+    fontWeight: '500',
+    marginLeft: 18,
+    fontStyle: 'italic',
+  },
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary + '10',
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 8,
+  },
+  infoBannerText: {
+    flex: 1,
+    fontSize: 12,
+    color: colors.textSecondary,
   },
   emptyState: {
     flex: 1,

@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(npx expo install:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []

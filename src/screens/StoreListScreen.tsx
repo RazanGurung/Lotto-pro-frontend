@@ -6,6 +6,7 @@ import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
 import { storeService } from '../services/api';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 
 type StoreListScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'StoreList'>;
 
@@ -86,43 +87,68 @@ export default function StoreListScreen({ navigation }: Props) {
   };
 
   const renderStoreItem = ({ item, index }: { item: Store; index: number }) => (
-    <TouchableOpacity
-      style={styles.storeCard}
-      onPress={() => handleStorePress(item)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.cardHeader}>
-        <View style={styles.storeIconContainer}>
-          <Text style={styles.storeIcon}>{getStoreIcon(index)}</Text>
-        </View>
-        <View style={styles.storeInfo}>
-          <Text style={styles.storeName}>{item.store_name}</Text>
-          <Text style={styles.storeAddress}>{formatAddress(item)}</Text>
-        </View>
-        <View style={styles.arrowContainer}>
-          <Text style={styles.arrowText}>›</Text>
-        </View>
-      </View>
-
-      <View style={styles.statsContainer}>
-        <View style={styles.statBox}>
-          <Text style={styles.statValue}>••••{item.lottery_ac_no.slice(-4)}</Text>
-          <Text style={styles.statLabel}>Account No.</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statBox}>
-          <Text style={styles.statValue}>{new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
-          <Text style={styles.statLabel}>Created</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statBox}>
-          <View style={styles.activeBadge}>
-            <Text style={styles.activeBadgeText}>✓</Text>
+    <View style={styles.storeCard}>
+      <TouchableOpacity
+        onPress={() => handleStorePress(item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.cardHeader}>
+          <View style={styles.storeIconContainer}>
+            <Text style={styles.storeIcon}>{getStoreIcon(index)}</Text>
           </View>
-          <Text style={styles.statLabel}>Active</Text>
+          <View style={styles.storeInfo}>
+            <Text style={styles.storeName}>{item.store_name}</Text>
+            <Text style={styles.storeAddress}>{formatAddress(item)}</Text>
+          </View>
+          <View style={styles.arrowContainer}>
+            <Text style={styles.arrowText}>›</Text>
+          </View>
         </View>
+
+        <View style={styles.statsContainer}>
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>••••{item.lottery_ac_no.slice(-4)}</Text>
+            <Text style={styles.statLabel}>Account No.</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>{new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+            <Text style={styles.statLabel}>Created</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statBox}>
+            <View style={styles.activeBadge}>
+              <Text style={styles.activeBadgeText}>✓</Text>
+            </View>
+            <Text style={styles.statLabel}>Active</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+
+      {/* Quick Action Buttons */}
+      <View style={styles.quickActions}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('StoreLotteryDashboard', {
+            storeId: item.id,
+            storeName: item.store_name
+          })}
+        >
+          <Ionicons name="cube-outline" size={18} color={colors.primary} />
+          <Text style={styles.actionButtonText}>My Inventory</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('PrintReport', {
+            storeId: item.id.toString(),
+            storeName: item.store_name
+          })}
+        >
+          <Ionicons name="document-text-outline" size={18} color={colors.secondary} />
+          <Text style={styles.actionButtonText}>Reports</Text>
+        </TouchableOpacity>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 
   const renderHeader = () => {
@@ -416,5 +442,31 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textLight,
     fontSize: 17,
     fontWeight: 'bold',
+  },
+  quickActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 6,
+  },
+  actionButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textPrimary,
   },
 });

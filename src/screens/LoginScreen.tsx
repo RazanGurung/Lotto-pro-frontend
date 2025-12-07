@@ -6,10 +6,8 @@ import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
 import { authService } from '../services/api';
 import { Ionicons } from '@expo/vector-icons';
-
-const ONBOARDING_COMPLETE_KEY = '@onboarding_complete';
-const AUTH_TOKEN_KEY = '@auth_token';
-const USER_DATA_KEY = '@user_data';
+import { STORAGE_KEYS } from '../config/env';
+import { validateEmail, validateRequired } from '../utils/validation';
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
@@ -28,8 +26,17 @@ export default function LoginScreen({ navigation }: Props) {
   const styles = createStyles(colors);
 
   const handleLogin = async () => {
-    if (!emailOrPhone.trim() || !password.trim()) {
-      Alert.alert('Validation Error', 'Please enter both email and password');
+    // Validate email
+    const emailValidation = validateEmail(emailOrPhone);
+    if (!emailValidation.isValid) {
+      Alert.alert('Invalid Email', emailValidation.error);
+      return;
+    }
+
+    // Validate password
+    const passwordValidation = validateRequired(password, 'Password');
+    if (!passwordValidation.isValid) {
+      Alert.alert('Invalid Password', passwordValidation.error);
       return;
     }
 
@@ -41,81 +48,52 @@ export default function LoginScreen({ navigation }: Props) {
         password,
       });
 
-      setLoading(false);
-
-      if (result.success) {
-        console.log('=== LOGIN SUCCESS ===');
-        console.log('Full result keys:', Object.keys(result));
-        console.log('Full result:', JSON.stringify(result, null, 2));
-        console.log('result.message:', result.message);
-        console.log('result.data?.message:', result.data?.message);
-        console.log('result.msg:', result.msg);
-        console.log('result.data?.msg:', result.data?.msg);
-
+      if (result.success && result.data) {
         // Store authentication token and user data
-        if (result.data?.token) {
-          await AsyncStorage.setItem(AUTH_TOKEN_KEY, result.data.token);
-        }
-        if (result.data?.user) {
-          await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(result.data.user));
-          console.log('User data:', JSON.stringify(result.data.user, null, 2));
-          console.log('User role:', result.data.user.role);
-          console.log('User type:', result.data.user.type);
-          console.log('User user_type:', result.data.user.user_type);
+        if (result.data.token) {
+          await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, result.data.token);
         }
 
-        // Determine user type based on success message or user data
+        if (result.data.user) {
+          await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(result.data.user));
+        }
+
+        // Determine user type from user data or success message
+        const userRole = result.data.user?.role || result.data.user?.type || result.data.user?.user_type || '';
         const successMessage = result.message || result.data?.message || result.msg || result.data?.msg || '';
-        const userRole = result.data?.user?.role || result.data?.user?.type || result.data?.user?.user_type || '';
-        let userType = 'store'; // default
 
-        console.log('Checking message:', successMessage);
-        console.log('Checking user role:', userRole);
+        let userType = 'store_owner'; // default
 
-        // First check user role/type in user data
-        if (userRole) {
-          if (userRole === 'superadmin' || userRole === 'super_admin' || userRole === 'admin') {
-            userType = 'superadmin';
-            console.log('✅ Detected SUPERADMIN from user data');
-          } else if (userRole === 'store_owner' || userRole === 'owner') {
-            userType = 'store_owner';
-            console.log('✅ Detected STORE OWNER from user data');
-          } else if (userRole === 'store') {
-            userType = 'store';
-            console.log('✅ Detected STORE from user data');
-          }
-        }
-        // Fallback to message checking
-        else if (successMessage.includes('Super admin login successful') || successMessage.includes('Superadmin login successful')) {
+        if (userRole === 'superadmin' || userRole === 'super_admin' || userRole === 'admin' ||
+            successMessage.toLowerCase().includes('super admin')) {
           userType = 'superadmin';
-          console.log('✅ Detected SUPERADMIN from message');
-        } else if (successMessage.includes('Store Owner login successful') || successMessage.includes('Store owner login successful')) {
+        } else if (userRole === 'store_owner' || userRole === 'owner' ||
+                   successMessage.toLowerCase().includes('store owner')) {
           userType = 'store_owner';
-          console.log('✅ Detected STORE OWNER from message');
-        } else {
-          console.log('⚠️ Defaulting to STORE user');
+        } else if (userRole === 'store') {
+          userType = 'store';
         }
 
-        await AsyncStorage.setItem('@user_type', userType);
-        console.log('Final userType saved:', userType);
-        console.log('===================');
+        await AsyncStorage.setItem(STORAGE_KEYS.USER_TYPE, userType);
 
         // Check if user has completed onboarding
-        const onboardingComplete = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
+        const onboardingComplete = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE);
 
         if (onboardingComplete === 'true') {
           navigation.replace('MainTabs');
         } else {
-          // First time login - show theme selection
           navigation.replace('ThemeSelection');
         }
       } else {
-        const errorMessage = result.error || 'Invalid email or password. Please try again.';
-        Alert.alert('Login Failed', errorMessage);
+        Alert.alert('Login Failed', result.error || 'Invalid email or password. Please try again.');
       }
     } catch (error: any) {
+      Alert.alert(
+        'Connection Error',
+        'Cannot connect to server. Please check your internet connection and try again.'
+      );
+    } finally {
       setLoading(false);
-      Alert.alert('Connection Error', 'Cannot connect to server. Please check your connection and try again.');
     }
   };
 
