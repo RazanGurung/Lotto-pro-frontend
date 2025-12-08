@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform, StatusBar, TextInput, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform, StatusBar, TextInput, Modal, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, Camera } from 'expo-camera';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -7,8 +7,7 @@ import { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
-import { decodeBarcode, formatDecodedData } from '../utils/barcodeDecoder';
-import { ticketService } from '../services/api';
+import { ticketService, lotteryService } from '../services/api';
 import { getUserFriendlyError } from '../utils/errors';
 
 type ScanTicketScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ScanTicket'>;
@@ -18,6 +17,15 @@ type Props = {
   navigation: ScanTicketScreenNavigationProp;
   route: ScanTicketScreenRouteProp;
 };
+
+interface LotteryType {
+  lottery_id: number;
+  lottery_name: string;
+  lottery_number: string;
+  state: string;
+  price: number;
+  status: string;
+}
 
 export default function ScanTicketScreen({ navigation, route }: Props) {
   const colors = useTheme();
@@ -29,6 +37,10 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
   const [manualBarcode, setManualBarcode] = useState('');
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [lotteryTypes, setLotteryTypes] = useState<LotteryType[]>([]);
+  const [lotteryTypesLoading, setLotteryTypesLoading] = useState(true);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [pendingBarcode, setPendingBarcode] = useState<{barcode: string, type: string, lotteryName: string, imageUrl?: string} | null>(null);
   const scanningRef = useRef(false);
   const lastScannedData = useRef<string>('');
   const scanTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -57,6 +69,40 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
     };
   }, []);
 
+  // Fetch lottery types when screen loads
+  useEffect(() => {
+    const fetchLotteryTypes = async () => {
+      try {
+        setLotteryTypesLoading(true);
+        console.log('Fetching lottery types for store:', storeId);
+        const result = await lotteryService.getLotteryTypes(parseInt(storeId, 10));
+
+        if (result.success && result.data) {
+          // Extract lotteryTypes array from the response
+          const types = result.data.lotteryTypes || result.data.data || result.data;
+          console.log('Lottery types loaded:', types);
+
+          if (Array.isArray(types)) {
+            console.log('Setting lottery types:', types.map(t => ({
+              number: t.lottery_number,
+              name: t.lottery_name
+            })));
+            setLotteryTypes(types);
+          } else {
+            console.error('Lottery types is not an array:', types);
+            setLotteryTypes([]);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch lottery types:', error);
+      } finally {
+        setLotteryTypesLoading(false);
+      }
+    };
+
+    fetchLotteryTypes();
+  }, [storeId]);
+
   const requestCameraPermission = async () => {
     setShowPermissionPrompt(false);
     const { status } = await Camera.requestCameraPermissionsAsync();
@@ -64,20 +110,27 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
   };
 
   const handleBarCodeScanned = ({ type, data }: { type: string; data: string }) => {
+    // Prevent scanning while lottery types are loading
+    if (lotteryTypesLoading) {
+      console.log('Scan blocked - lottery types still loading');
+      return;
+    }
+
     // Prevent multiple scans using ref (faster than state)
-    if (scanningRef.current) return;
+    if (scanningRef.current) {
+      console.log('Scan blocked - already scanning');
+      return;
+    }
 
     // Prevent scanning the same barcode twice in a row
-    if (lastScannedData.current === data) return;
+    if (lastScannedData.current === data) {
+      console.log('Scan blocked - same barcode');
+      return;
+    }
 
     scanningRef.current = true;
     lastScannedData.current = data;
     setScanned(true);
-
-    // Add debounce: Allow scanning again after 2 seconds if user doesn't interact with alert
-    scanTimeout.current = setTimeout(() => {
-      lastScannedData.current = '';
-    }, 2000);
 
     // DEBUG: Log the raw scan data
     console.log('=== BARCODE SCAN DEBUG ===');
@@ -85,88 +138,70 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
     console.log('Raw Data:', data);
     console.log('Length:', data.length);
     console.log('Is Numeric:', /^\d+$/.test(data));
+
+    // Extract first 3 digits to identify lottery game
+    const first3Digits = data.substring(0, 3);
+    console.log('First 3 digits:', first3Digits);
+    console.log('Lottery types loaded:', lotteryTypes.length);
+    console.log('Lottery types:', lotteryTypes.map(l => ({
+      number: l.lottery_number,
+      name: l.lottery_name
+    })));
+
+    // Find matching lottery by game number
+    const matchedLottery = lotteryTypes.find(
+      lottery => lottery.lottery_number === first3Digits
+    );
+
+    console.log('Matched lottery:', matchedLottery);
     console.log('========================');
 
-    // Decode the barcode data
-    const decoded = decodeBarcode(data);
-
-    if (!decoded.isValid) {
-      // Show detailed debug information for unknown formats
-      const debugInfo = `
-📊 SCAN DEBUG INFO:
-
-Barcode Type: ${type}
-Raw Data: ${data}
-Data Length: ${data.length} chars
-Is Numeric: ${/^\d+$/.test(data) ? 'Yes' : 'No'}
-
-Error: ${decoded.error}
-
-Expected Formats:
-• 20 digits: 02302085100671714542
-• 15 digits: 023020851006717
-• 12 digits: 023020851006
-• With dashes: 023-020851-006
-
-Please scan the INFORMATION BARCODE (not the price barcode).
-      `.trim();
-
+    if (matchedLottery) {
+      // Show confirmation popup with lottery name and image
+      setPendingBarcode({
+        barcode: data,
+        type: type,
+        lotteryName: matchedLottery.lottery_name,
+        imageUrl: matchedLottery.image_url
+      });
+      setShowConfirmation(true);
+    } else {
+      // Lottery not found - show error
       Alert.alert(
-        'Barcode Not Recognized',
-        debugInfo,
+        'Unknown Lottery Game',
+        `Could not identify lottery game with number "${first3Digits}".\n\nAvailable lottery types: ${lotteryTypes.length}\n\nPlease ensure this lottery game is available in your system.`,
         [
           {
             text: 'Try Again',
             onPress: () => resetScanner(),
           },
           {
-            text: 'Cancel',
-            onPress: () => navigation.goBack(),
+            text: 'Manual Entry',
+            onPress: () => {
+              resetScanner();
+              setShowManualEntry(true);
+            },
           },
         ]
       );
-      return;
+      // Don't reset scanner immediately, let the alert handle it
     }
-
-    // Show decoded information
-    const formattedInfo = formatDecodedData(decoded);
-
-    Alert.alert(
-      '✓ Ticket Scanned Successfully',
-      `${formattedInfo}\n\n━━━━━━━━━━━━━━━━━\nBarcode Type: ${type}\nRaw Data: ${decoded.raw}\n\n⚠️ Please verify the ticket number matches the physical ticket before confirming.`,
-      [
-        {
-          text: 'Scan Again',
-          onPress: () => resetScanner(),
-          style: 'cancel',
-        },
-        {
-          text: 'Confirm & Save',
-          onPress: () => saveTicketToInventory(decoded),
-        },
-      ]
-    );
   };
 
-  const saveTicketToInventory = async (decoded: any) => {
+  const processScannedBarcode = async (rawBarcode: string, barcodeType: string) => {
     try {
       setSaving(true);
 
-      const result = await ticketService.saveTicket({
-        store_id: parseInt(storeId, 10),
-        lottery_game_number: decoded.gameNumber || decoded.raw.substring(0, 3),
-        lottery_game_name: decoded.gameName || 'Unknown Game',
-        pack_number: decoded.packNumber || '000',
-        ticket_number: decoded.ticketNumber || decoded.raw,
-        barcode_raw: decoded.raw,
-        scanned_at: new Date().toISOString(),
-        price: decoded.price || 0,
-      });
+      // Send raw barcode to backend
+      const result = await ticketService.scanTicket(rawBarcode, parseInt(storeId, 10));
 
       if (result.success) {
+        // Backend successfully processed the barcode
+        const ticketInfo = result.data || {};
+
         Alert.alert(
-          'Success',
-          'Ticket added to inventory successfully!',
+          '✓ Ticket Scanned Successfully',
+          `${ticketInfo.lottery_game_name || 'Lottery Ticket'}\n\nGame #${ticketInfo.lottery_game_number || 'N/A'}\nPack: ${ticketInfo.pack_number || 'N/A'}\nTicket: ${ticketInfo.ticket_number || 'N/A'}\nPrice: $${ticketInfo.price || '0.00'}\n\n━━━━━━━━━━━━━━━━━\nBarcode Type: ${barcodeType}\nRaw Data: ${rawBarcode}\n\n✓ Ticket added to inventory`,
           [
             {
               text: 'Scan Another',
@@ -184,12 +219,40 @@ Please scan the INFORMATION BARCODE (not the price barcode).
           ]
         );
       } else {
-        Alert.alert('Error', result.error || 'Failed to save ticket to inventory');
-        resetScanner();
+        // Backend returned an error - show clean user-friendly message
+        const errorMessage = result.error || 'Failed to process barcode. Please try again or enter manually.';
+
+        Alert.alert(
+          'Unable to Process Barcode',
+          errorMessage,
+          [
+            {
+              text: 'Try Again',
+              onPress: () => resetScanner(),
+            },
+            {
+              text: 'Manual Entry',
+              onPress: () => {
+                resetScanner();
+                setShowManualEntry(true);
+              },
+            },
+          ]
+        );
       }
     } catch (error) {
-      Alert.alert('Error', getUserFriendlyError(error));
-      resetScanner();
+      // Network or unexpected errors
+      console.log('Scan error caught:', error); // Log for debugging but don't display
+      Alert.alert(
+        'Connection Error',
+        'Unable to connect to the server. Please check your internet connection and try again.',
+        [
+          {
+            text: 'Try Again',
+            onPress: () => resetScanner(),
+          },
+        ]
+      );
     } finally {
       setSaving(false);
     }
@@ -208,38 +271,52 @@ Please scan the INFORMATION BARCODE (not the price barcode).
     }
   };
 
+  const handleConfirmBarcode = () => {
+    if (pendingBarcode) {
+      setShowConfirmation(false);
+      processScannedBarcode(pendingBarcode.barcode, pendingBarcode.type);
+      setPendingBarcode(null);
+    }
+  };
+
+  const handleCancelBarcode = () => {
+    setShowConfirmation(false);
+    setPendingBarcode(null);
+    resetScanner();
+  };
+
   const handleManualEntry = () => {
     if (!manualBarcode.trim()) {
       Alert.alert('Error', 'Please enter a barcode number');
       return;
     }
 
-    const decoded = decodeBarcode(manualBarcode.trim());
-
-    if (!decoded.isValid) {
-      Alert.alert('Invalid Barcode', decoded.error || 'Could not decode barcode');
-      return;
-    }
-
-    const formattedInfo = formatDecodedData(decoded);
-
     setShowManualEntry(false);
+    const enteredBarcode = manualBarcode.trim();
     setManualBarcode('');
 
-    Alert.alert(
-      '✓ Ticket Entered Successfully',
-      `${formattedInfo}\n\n━━━━━━━━━━━━━━━━━\nManually Entered\nRaw Data: ${decoded.raw}`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Save to Inventory',
-          onPress: () => saveTicketToInventory(decoded),
-        },
-      ]
+    // Extract first 3 digits to identify lottery game
+    const first3Digits = enteredBarcode.substring(0, 3);
+    const matchedLottery = lotteryTypes.find(
+      lottery => lottery.lottery_number === first3Digits
     );
+
+    if (matchedLottery) {
+      // Show confirmation popup with lottery name and image
+      setPendingBarcode({
+        barcode: enteredBarcode,
+        type: 'manual',
+        lotteryName: matchedLottery.lottery_name,
+        imageUrl: matchedLottery.image_url
+      });
+      setShowConfirmation(true);
+    } else {
+      // Lottery not found - show error
+      Alert.alert(
+        'Unknown Lottery Game',
+        `Could not identify lottery game with number "${first3Digits}". Please ensure the lottery game is available in your system.`
+      );
+    }
   };
 
   if (hasPermission === null) {
@@ -289,14 +366,25 @@ Please scan the INFORMATION BARCODE (not the price barcode).
       <View style={styles.cameraContainer}>
         <CameraView
           facing="back"
-          onBarcodeScanned={handleBarCodeScanned}
+          onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
           style={styles.camera}
         />
         <View style={styles.scanOverlay}>
           <View style={styles.scanFrame} />
           <Text style={styles.scanInstruction}>
-            {scanned ? 'Ticket Scanned!' : 'Align barcode within frame'}
+            {lotteryTypesLoading
+              ? 'Loading lottery data...'
+              : scanned
+              ? 'Ticket Scanned!'
+              : 'Align barcode within frame'}
           </Text>
+          {lotteryTypesLoading && (
+            <ActivityIndicator
+              size="large"
+              color={colors.secondary}
+              style={{ marginTop: 20 }}
+            />
+          )}
         </View>
       </View>
 
@@ -443,6 +531,70 @@ Please scan the INFORMATION BARCODE (not the price barcode).
             >
               <Text style={styles.denyButtonText}>Not Now</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Barcode Confirmation Modal */}
+      <Modal
+        visible={showConfirmation}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={handleCancelBarcode}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.confirmationModalContent}>
+            {pendingBarcode?.imageUrl ? (
+              <View style={styles.confirmationImageContainer}>
+                <Image
+                  source={{ uri: pendingBarcode.imageUrl }}
+                  style={styles.confirmationImage}
+                  resizeMode="contain"
+                />
+              </View>
+            ) : (
+              <View style={styles.confirmationIconContainer}>
+                <Ionicons name="ticket" size={64} color={colors.primary} />
+              </View>
+            )}
+
+            <Text style={styles.confirmationTitle}>Confirm Lottery Ticket</Text>
+
+            <Text style={styles.confirmationLotteryName}>
+              {pendingBarcode?.lotteryName}
+            </Text>
+
+            <View style={styles.confirmationBarcodeContainer}>
+              <Text style={styles.confirmationBarcodeLabel}>Barcode:</Text>
+              <Text style={styles.confirmationBarcodeValue}>
+                {pendingBarcode?.barcode}
+              </Text>
+            </View>
+
+            <Text style={styles.confirmationQuestion}>
+              Is this the correct lottery ticket?
+            </Text>
+
+            <View style={styles.confirmationActions}>
+              <TouchableOpacity
+                style={[styles.confirmationButton, styles.cancelConfirmButton]}
+                onPress={handleCancelBarcode}
+                disabled={saving}
+              >
+                <Text style={styles.cancelConfirmButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmationButton, styles.confirmConfirmButton]}
+                onPress={handleConfirmBarcode}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator color={colors.white} />
+                ) : (
+                  <Text style={styles.confirmConfirmButtonText}>Confirm</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -773,5 +925,116 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textMuted,
     fontSize: 16,
     fontWeight: '600',
+  },
+  confirmationModalContent: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 28,
+    width: '90%',
+    maxWidth: 400,
+    alignItems: 'center',
+  },
+  confirmationIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: colors.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  confirmationImageContainer: {
+    width: 140,
+    height: 140,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 20,
+    backgroundColor: colors.background,
+    borderWidth: 2,
+    borderColor: colors.primary + '30',
+    alignSelf: 'center',
+  },
+  confirmationImage: {
+    width: '100%',
+    height: '100%',
+  },
+  confirmationTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  confirmationLotteryName: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.primary,
+    textAlign: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 16,
+  },
+  confirmationBarcodeContainer: {
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    padding: 16,
+    width: '100%',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  confirmationBarcodeLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  confirmationBarcodeValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  confirmationQuestion: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  confirmationActions: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  confirmationButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 50,
+  },
+  cancelConfirmButton: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  cancelConfirmButtonText: {
+    color: colors.textPrimary,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  confirmConfirmButton: {
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  confirmConfirmButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

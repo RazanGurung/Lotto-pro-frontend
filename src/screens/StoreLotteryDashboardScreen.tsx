@@ -3,6 +3,8 @@
  * Displays lottery inventory, sales, and stock levels for a specific store
  */
 
+console.log('=== StoreLotteryDashboardScreen.tsx FILE LOADED ===');
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -39,6 +41,8 @@ interface LotteryInventory {
   price: number;
   total_value: number;
   last_scanned: string;
+  status?: string;
+  image_url?: string;
 }
 
 interface RecentTicket {
@@ -64,6 +68,13 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
   const styles = createStyles(colors);
   const { storeId, storeName } = route.params;
 
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('🖥️  DASHBOARD SCREEN RENDERED');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('Store ID:', storeId);
+  console.log('Store Name:', storeName);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [inventory, setInventory] = useState<LotteryInventory[]>([]);
@@ -78,6 +89,7 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
 
   useFocusEffect(
     React.useCallback(() => {
+      console.log('🔄 useFocusEffect triggered - about to fetch data');
       fetchDashboardData();
     }, [storeId])
   );
@@ -85,39 +97,98 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const result = await ticketService.getTickets(storeId);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('📦 LOADING STORE INVENTORY DATA');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('🏪 Store ID:', storeId);
+      console.log('🏪 Store Name:', storeName);
+      console.log('📍 Endpoint: /lottery/store/' + storeId + '/inventory');
 
-      if (result.success && result.data) {
-        processTicketData(result.data);
+      // Fetch inventory data from new endpoint
+      const inventoryResult = await ticketService.getStoreInventory(storeId);
+
+      console.log('\n📊 INVENTORY API RESPONSE:');
+      console.log('Success:', inventoryResult.success);
+      console.log('Full Response:', JSON.stringify(inventoryResult, null, 2));
+
+      if (inventoryResult.success && inventoryResult.data) {
+        const inventoryData = inventoryResult.data.inventory || inventoryResult.data.data || inventoryResult.data;
+
+        console.log('\n✅ INVENTORY DATA RECEIVED:');
+        console.log('Type:', Array.isArray(inventoryData) ? 'Array' : typeof inventoryData);
+        console.log('Count:', Array.isArray(inventoryData) ? inventoryData.length : 'N/A');
+
+        if (Array.isArray(inventoryData) && inventoryData.length > 0) {
+          console.log('\n📋 INVENTORY ITEMS:');
+          inventoryData.forEach((item, index) => {
+            console.log(`\nItem ${index + 1}:`, {
+              lottery_game_name: item.lottery_game_name || item.lottery_name,
+              lottery_game_number: item.lottery_game_number || item.lottery_number,
+              pack_number: item.pack_number,
+              ticket_number: item.ticket_number,
+              price: item.price,
+              scanned_at: item.scanned_at
+            });
+          });
+          console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          processTicketData(inventoryData);
+        } else {
+          console.log('\n⚠️ NO INVENTORY ITEMS FOUND');
+          console.log('Showing empty state');
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          setInventory([]);
+          setRecentTickets([]);
+        }
       } else {
-        // Show empty state
+        console.log('\n❌ INVENTORY FETCH FAILED');
+        console.log('Error:', inventoryResult.error);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         setInventory([]);
         setRecentTickets([]);
       }
     } catch (error) {
+      console.error('\n💥 ERROR FETCHING INVENTORY:', error);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       Alert.alert('Error', getUserFriendlyError(error));
     } finally {
       setLoading(false);
+      console.log('\n✓ Dashboard loading complete');
     }
   };
 
   const processTicketData = (tickets: any[]) => {
+    console.log('=== PROCESSING TICKET DATA ===');
+    console.log('Total tickets received:', tickets.length);
+    console.log('First ticket sample:', JSON.stringify(tickets[0], null, 2));
+    console.log('First ticket keys:', Object.keys(tickets[0] || {}));
+
+    // Check if this is lottery definitions or scanned tickets
+    const firstItem = tickets[0];
+    if (firstItem && firstItem.lottery_id) {
+      console.log('⚠️ WARNING: Data looks like lottery definitions, not scanned tickets!');
+      console.log('Expected fields: lottery_game_number, pack_number, ticket_number, scanned_at');
+      console.log('Received fields:', Object.keys(firstItem).join(', '));
+    }
+
     // Group tickets by lottery game
     const gameMap = new Map<string, LotteryInventory>();
     const recent: RecentTicket[] = [];
 
-    tickets.forEach((ticket) => {
-      const gameNumber = ticket.lottery_game_number;
+    tickets.forEach((ticket, index) => {
+      console.log(`Processing ticket ${index}:`, ticket);
+      const gameNumber = ticket.lottery_game_number || ticket.lottery_number;
 
       if (!gameMap.has(gameNumber)) {
         gameMap.set(gameNumber, {
           lottery_game_number: gameNumber,
-          lottery_game_name: ticket.lottery_game_name,
+          lottery_game_name: ticket.lottery_game_name || ticket.lottery_name,
           total_packs: 0,
           total_tickets: 0,
-          price: ticket.price || 0,
+          price: parseFloat(ticket.price) || 0,
           total_value: 0,
-          last_scanned: ticket.scanned_at,
+          last_scanned: ticket.scanned_at || new Date().toISOString(),
+          status: ticket.status,
+          image_url: ticket.image_url,
         });
       }
 
@@ -158,6 +229,17 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
     const totalValue = inventoryData.reduce((sum, game) => sum + game.total_value, 0);
     const totalPacks = inventoryData.reduce((sum, game) => sum + game.total_packs, 0);
     const totalTickets = inventoryData.reduce((sum, game) => sum + game.total_tickets, 0);
+
+    console.log('=== PROCESSED RESULTS ===');
+    console.log('Inventory games:', inventoryData.length);
+    console.log('Inventory data:', JSON.stringify(inventoryData, null, 2));
+    console.log('Recent tickets:', recentData.length);
+    console.log('Stats:', {
+      totalValue,
+      totalPacks,
+      totalTickets,
+      totalGames: inventoryData.length
+    });
 
     setInventory(inventoryData);
     setRecentTickets(recentData);
@@ -285,46 +367,59 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
               </TouchableOpacity>
             </View>
           ) : (
-            inventory.map((game, index) => (
-              <View key={index} style={styles.inventoryCard}>
-                <View style={styles.inventoryHeader}>
-                  <View style={styles.inventoryIcon}>
-                    <Ionicons name="ticket" size={24} color={colors.primary} />
+            inventory.map((game, index) => {
+              const isActive = game.status?.toLowerCase() === 'active';
+              return (
+                <View key={index} style={styles.inventoryCard}>
+                  <View style={styles.inventoryHeader}>
+                    <View style={styles.inventoryIcon}>
+                      <Ionicons name="ticket" size={24} color={colors.primary} />
+                    </View>
+                    <View style={styles.inventoryInfo}>
+                      <Text style={styles.inventoryGameName}>{game.lottery_game_name}</Text>
+                      <Text style={styles.inventoryGameNumber}>#{game.lottery_game_number}</Text>
+                    </View>
+                    <View style={styles.inventoryValue}>
+                      <Text style={styles.inventoryPrice}>{formatCurrency(game.total_value)}</Text>
+                    </View>
                   </View>
-                  <View style={styles.inventoryInfo}>
-                    <Text style={styles.inventoryGameName}>{game.lottery_game_name}</Text>
-                    <Text style={styles.inventoryGameNumber}>#{game.lottery_game_number}</Text>
-                  </View>
-                  <View style={styles.inventoryValue}>
-                    <Text style={styles.inventoryPrice}>{formatCurrency(game.total_value)}</Text>
-                  </View>
-                </View>
 
-                <View style={styles.inventoryStats}>
-                  <View style={styles.inventoryStat}>
-                    <Text style={styles.inventoryStatValue}>{game.total_packs}</Text>
-                    <Text style={styles.inventoryStatLabel}>Packs</Text>
+                  <View style={styles.inventoryStats}>
+                    <View style={styles.inventoryStat}>
+                      <Text style={styles.inventoryStatValue}>{game.total_packs}</Text>
+                      <Text style={styles.inventoryStatLabel}>Packs</Text>
+                    </View>
+                    <View style={styles.inventoryStatDivider} />
+                    <View style={styles.inventoryStat}>
+                      <Text style={styles.inventoryStatValue}>{game.total_tickets}</Text>
+                      <Text style={styles.inventoryStatLabel}>Tickets</Text>
+                    </View>
+                    <View style={styles.inventoryStatDivider} />
+                    <View style={styles.inventoryStat}>
+                      <Text style={styles.inventoryStatValue}>{formatCurrency(game.price)}</Text>
+                      <Text style={styles.inventoryStatLabel}>Per Ticket</Text>
+                    </View>
                   </View>
-                  <View style={styles.inventoryStatDivider} />
-                  <View style={styles.inventoryStat}>
-                    <Text style={styles.inventoryStatValue}>{game.total_tickets}</Text>
-                    <Text style={styles.inventoryStatLabel}>Tickets</Text>
-                  </View>
-                  <View style={styles.inventoryStatDivider} />
-                  <View style={styles.inventoryStat}>
-                    <Text style={styles.inventoryStatValue}>{formatCurrency(game.price)}</Text>
-                    <Text style={styles.inventoryStatLabel}>Per Ticket</Text>
-                  </View>
-                </View>
 
-                <View style={styles.inventoryFooter}>
-                  <Ionicons name="time-outline" size={14} color={colors.textMuted} />
-                  <Text style={styles.inventoryLastScanned}>
-                    Last scanned {formatDate(game.last_scanned)}
-                  </Text>
+                  <View style={styles.inventoryFooter}>
+                    <Ionicons name="time-outline" size={14} color={colors.textMuted} />
+                    <Text style={styles.inventoryLastScanned}>
+                      Last scanned {formatDate(game.last_scanned)}
+                    </Text>
+                  </View>
+
+                  {/* Inactive Overlay */}
+                  {!isActive && (
+                    <View style={styles.inactiveOverlay}>
+                      <View style={styles.inactiveBadge}>
+                        <Ionicons name="lock-closed" size={20} color={colors.white} />
+                        <Text style={styles.inactiveText}>INACTIVE</Text>
+                      </View>
+                    </View>
+                  )}
                 </View>
-              </View>
-            ))
+              );
+            })
           )}
         </View>
 
@@ -473,6 +568,7 @@ const createStyles = (colors: any) =>
       marginBottom: 12,
       borderWidth: 1,
       borderColor: colors.border,
+      position: 'relative',
     },
     inventoryHeader: {
       flexDirection: 'row',
@@ -622,5 +718,34 @@ const createStyles = (colors: any) =>
     },
     bottomSpacing: {
       height: 40,
+    },
+    inactiveOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+      borderRadius: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 10,
+    },
+    inactiveBadge: {
+      backgroundColor: 'rgba(0, 0, 0, 0.9)',
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      borderWidth: 2,
+      borderColor: 'rgba(255, 255, 255, 0.3)',
+    },
+    inactiveText: {
+      color: colors.white,
+      fontSize: 14,
+      fontWeight: 'bold',
+      letterSpacing: 1,
     },
   });

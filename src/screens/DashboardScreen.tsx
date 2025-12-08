@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, Dimensions, TouchableOpacity, StatusBar, useColorScheme, TextInput, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Dimensions, TouchableOpacity, StatusBar, useColorScheme, TextInput, ActivityIndicator, RefreshControl, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -30,12 +30,25 @@ type Lottery = {
   created_at: string;
   image_url?: string;
   assigned_to_caller?: boolean;
+  is_assigned?: boolean; // Added: true if lottery has active inventory
+  inventory_count?: number; // Added: current count from inventory
   creator?: {
     super_admin_id: number;
     name: string;
     email: string;
   };
 };
+
+interface InventoryItem {
+  id: number;
+  store_id: number;
+  lottery_id: number;
+  serial_number: string;
+  total_count: number;
+  current_count: number;
+  status: string;
+  created_at: string;
+}
 
 interface InventoryCount {
   [gameNumber: string]: number; // gameNumber -> ticket count
@@ -62,53 +75,130 @@ export default function DashboardScreen({ route, navigation }: Props) {
     try {
       setLoading(true);
 
-      console.log('🔍 DEBUG: Fetching lotteries for state:', state);
-      console.log('🔍 DEBUG: Store ID:', storeId);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('📦 DASHBOARD: Loading Data');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('🏪 Store ID:', storeId);
+      console.log('🏪 Store Name:', storeName);
+      console.log('📍 State:', state);
 
-      // Fetch both lotteries and inventory in parallel
-      // Using getPublicLotteries (no super admin required) instead of getLotteries
-      const [lotteriesResult, inventoryResult] = await Promise.all([
-        lotteryService.getPublicLotteries(state),
-        ticketService.getTickets(parseInt(storeId, 10))
-      ]);
+      // Fetch lottery types using bearer token + store ID
+      console.log('\n1️⃣ Fetching lottery types...');
+      const lotteriesResult = await lotteryService.getLotteryTypes(parseInt(storeId, 10));
 
-      console.log('📊 DEBUG: Lotteries result:', JSON.stringify(lotteriesResult, null, 2));
-      console.log('📦 DEBUG: Inventory result:', JSON.stringify(inventoryResult, null, 2));
+      console.log('📊 Lottery Types Result:', lotteriesResult.success);
+
+      // Declare lotteriesData outside the if block so it's accessible later
+      let lotteriesData: Lottery[] = [];
 
       // Process lotteries - already filtered by state from backend
       if (lotteriesResult.success && lotteriesResult.data) {
-        const lotteriesData = Array.isArray(lotteriesResult.data)
-          ? lotteriesResult.data
-          : lotteriesResult.data.lotteries || [];
+        // Extract lotteryTypes from response { lotteryTypes: [...] }
+        lotteriesData = lotteriesResult.data.lotteryTypes ||
+                        lotteriesResult.data.lotteries ||
+                        (Array.isArray(lotteriesResult.data) ? lotteriesResult.data : []);
 
-        console.log('📋 DEBUG: Total lotteries received:', lotteriesData.length);
-        console.log('📋 DEBUG: Sample lottery:', lotteriesData[0]);
+        console.log('📋 Total lotteries received:', lotteriesData.length);
 
-        setLotteries(lotteriesData);
-      } else {
-        console.log('❌ DEBUG: Lotteries result not successful or no data');
-        console.log('❌ DEBUG: Error:', lotteriesResult.error);
-        setLotteries([]);
-      }
-
-      // Process inventory counts
-      if (inventoryResult.success && inventoryResult.data) {
-        const tickets = Array.isArray(inventoryResult.data) ? inventoryResult.data : [];
-        const counts: InventoryCount = {};
-
-        tickets.forEach((ticket: any) => {
-          const gameNumber = ticket.lottery_game_number;
-          counts[gameNumber] = (counts[gameNumber] || 0) + 1;
+        // Show all lotteries (active and inactive)
+        lotteriesData.forEach((lottery: Lottery) => {
+          const isActive = lottery.status?.toLowerCase() === 'active';
+          console.log(`🎫 Lottery ${lottery.lottery_name} (${lottery.lottery_number}): status=${lottery.status}, active=${isActive}`);
         });
 
-        console.log('📦 DEBUG: Inventory counts:', counts);
-        setInventoryCounts(counts);
+        // Don't set lotteries here - will set after inventory matching
       } else {
-        console.log('❌ DEBUG: Inventory result not successful or no data');
+        console.log('❌ Lotteries fetch failed:', lotteriesResult.error);
+        setLotteries([]);
+        setLoading(false);
+        return; // Exit early if no lotteries
+      }
+
+      // Fetch inventory data
+      console.log('\n2️⃣ Fetching inventory data...');
+      const inventoryResult = await ticketService.getStoreInventory(parseInt(storeId, 10));
+
+      console.log('📦 Inventory Result:', inventoryResult.success);
+
+      if (inventoryResult.success && inventoryResult.data) {
+        const inventoryData: InventoryItem[] = inventoryResult.data.inventory || inventoryResult.data.data || inventoryResult.data;
+
+        console.log('✅ Inventory items received:', Array.isArray(inventoryData) ? inventoryData.length : 'N/A');
+
+        if (Array.isArray(inventoryData)) {
+          console.log('\n📊 Processing inventory assignments...');
+
+          if (inventoryData.length === 0) {
+            console.log('⚠️ No inventory items - all lotteries marked as NOT ASSIGNED');
+            // No inventory, mark all as not assigned
+            const updatedLotteries = lotteriesData.map((lottery: Lottery) => ({
+              ...lottery,
+              is_assigned: false,
+              inventory_count: 0
+            }));
+            setLotteries(updatedLotteries);
+            setInventoryCounts({});
+          } else {
+            // Match inventory with lotteries by lottery_id
+            const updatedLotteries = lotteriesData.map((lottery: Lottery) => {
+              // Find inventory for this lottery
+              const inventoryItem = inventoryData.find(
+                (item: InventoryItem) => item.lottery_id === lottery.lottery_id && item.status === 'active'
+              );
+
+              if (inventoryItem) {
+                console.log(`✓ Lottery #${lottery.lottery_number} (${lottery.lottery_name}) is ASSIGNED - Count: ${inventoryItem.current_count}/${inventoryItem.total_count}`);
+                return {
+                  ...lottery,
+                  is_assigned: true,
+                  inventory_count: inventoryItem.current_count
+                };
+              } else {
+                console.log(`✗ Lottery #${lottery.lottery_number} (${lottery.lottery_name}) is NOT ASSIGNED`);
+                return {
+                  ...lottery,
+                  is_assigned: false,
+                  inventory_count: 0
+                };
+              }
+            });
+
+            console.log('\n📋 Final lottery assignments:');
+            updatedLotteries.forEach((lottery: Lottery) => {
+              console.log(`  - ${lottery.lottery_name}: ${lottery.is_assigned ? 'ASSIGNED' : 'NOT ASSIGNED'} (${lottery.inventory_count} tickets)`);
+            });
+
+            setLotteries(updatedLotteries);
+
+            // Also set inventory counts for backward compatibility
+            const counts: InventoryCount = {};
+            inventoryData.forEach((item: InventoryItem) => {
+              const matchedLottery = lotteriesData.find((l: Lottery) => l.lottery_id === item.lottery_id);
+              if (matchedLottery) {
+                counts[matchedLottery.lottery_number] = item.current_count;
+              }
+            });
+
+            console.log('📊 Inventory counts by game:', counts);
+            setInventoryCounts(counts);
+          }
+        }
+      } else {
+        console.log('❌ Inventory fetch failed:', inventoryResult.error);
+
+        // Mark all lotteries as not assigned if inventory fetch fails
+        const updatedLotteries = lotteriesData.map((lottery: Lottery) => ({
+          ...lottery,
+          is_assigned: false,
+          inventory_count: 0
+        }));
+        setLotteries(updatedLotteries);
         setInventoryCounts({});
       }
+
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     } catch (error) {
-      console.log('❌ DEBUG: Error in fetchLotteries:', error);
+      console.log('❌ ERROR: Failed to load dashboard data:', error);
       setLotteries([]);
       setInventoryCounts({});
     } finally {
@@ -147,8 +237,14 @@ export default function DashboardScreen({ route, navigation }: Props) {
   const renderLotteryCard = (lottery: Lottery) => {
     const totalTickets = lottery.end_number - lottery.start_number + 1;
 
+    // Check if lottery is active from lottery department
+    const isDepartmentActive = lottery.status?.toLowerCase() === 'active';
+
+    // Check if lottery is assigned to this store (based on active inventory)
+    const isAssignedToStore = lottery.is_assigned === true;
+
     // Get REAL inventory count for this game
-    const currentStock = inventoryCounts[lottery.lottery_number] || 0;
+    const currentStock = lottery.inventory_count || inventoryCounts[lottery.lottery_number] || 0;
     const stockPercentage = totalTickets > 0 ? (currentStock / totalTickets) * 100 : 0;
 
     // Determine stock status based on actual inventory
@@ -169,16 +265,28 @@ export default function DashboardScreen({ route, navigation }: Props) {
       <TouchableOpacity
         key={lottery.lottery_id}
         style={styles.lotteryCard}
-        onPress={() => navigation.navigate('LotteryGameDetail', { game: lottery })}
+        onPress={() => navigation.navigate('StoreLotteryGameDetail', {
+          game: lottery,
+          storeId,
+          storeName
+        })}
         activeOpacity={0.7}
       >
         {/* Status Indicator Dot */}
         <View style={[styles.statusDot, { backgroundColor: stockInfo.color }]} />
 
-        {/* Icon */}
-        <View style={[styles.iconContainer, { backgroundColor: colors.primaryLight + '15' }]}>
-          <Ionicons name="ticket" size={32} color={colors.primary} />
-        </View>
+        {/* Lottery Image */}
+        {lottery.image_url ? (
+          <Image
+            source={{ uri: lottery.image_url }}
+            style={styles.lotteryImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={[styles.iconContainer, { backgroundColor: colors.primaryLight + '15' }]}>
+            <Ionicons name="ticket" size={32} color={colors.primary} />
+          </View>
+        )}
 
         {/* Name */}
         <Text style={styles.lotteryName} numberOfLines={2}>{lottery.lottery_name}</Text>
@@ -221,6 +329,16 @@ export default function DashboardScreen({ route, navigation }: Props) {
             </Text>
           )}
         </View>
+
+        {/* Inactive Overlay - Shows when lottery is not assigned to this store */}
+        {!isAssignedToStore && (
+          <View style={styles.inactiveOverlay}>
+            <View style={styles.inactiveBadge}>
+              <Ionicons name="lock-closed" size={24} color={colors.white} />
+              <Text style={styles.inactiveText}>NOT ASSIGNED</Text>
+            </View>
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -291,7 +409,7 @@ export default function DashboardScreen({ route, navigation }: Props) {
         <View style={styles.infoBanner}>
           <Ionicons name="information-circle" size={16} color={colors.primary} />
           <Text style={styles.infoBannerText}>
-            Shows available games with your real scanned inventory
+            {lotteries.filter(l => l.is_assigned).length} assigned • {lotteries.filter(l => !l.is_assigned).length} not assigned
           </Text>
         </View>
       </View>
@@ -483,6 +601,13 @@ const createStyles = (colors: any, colorScheme: 'light' | 'dark' | null | undefi
     alignItems: 'center',
     marginBottom: 10,
   },
+  lotteryImage: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 12,
+    marginBottom: 10,
+    backgroundColor: '#f0f0f0',
+  },
   statusDot: {
     position: 'absolute',
     top: 10,
@@ -547,6 +672,35 @@ const createStyles = (colors: any, colorScheme: 'light' | 'dark' | null | undefi
     fontWeight: '500',
     marginLeft: 18,
     fontStyle: 'italic',
+  },
+  inactiveOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  inactiveBadge: {
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  inactiveText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 1,
   },
   infoBanner: {
     flexDirection: 'row',

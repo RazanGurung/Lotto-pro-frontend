@@ -129,10 +129,16 @@ export default function StoreListScreen({ navigation }: Props) {
       <View style={styles.quickActions}>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => navigation.navigate('StoreLotteryDashboard', {
-            storeId: item.id,
-            storeName: item.store_name
-          })}
+          onPress={() => {
+            console.log('=== NAVIGATING TO STORE LOTTERY DASHBOARD ===');
+            console.log('Store ID:', item.id);
+            console.log('Store Name:', item.store_name);
+            console.log('Note: Only sending Bearer token to API');
+            navigation.navigate('StoreLotteryDashboard', {
+              storeId: item.id,
+              storeName: item.store_name
+            });
+          }}
         >
           <Ionicons name="cube-outline" size={18} color={colors.primary} />
           <Text style={styles.actionButtonText}>My Inventory</Text>

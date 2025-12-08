@@ -34,6 +34,7 @@ import AddLotteryGameScreen from '../screens/AddLotteryGameScreen';
 import EditLotteryGameScreen from '../screens/EditLotteryGameScreen';
 import LotteryGameDetailScreen from '../screens/LotteryGameDetailScreen';
 import StoreLotteryDashboardScreen from '../screens/StoreLotteryDashboardScreen';
+import StoreLotteryGameDetailScreen from '../screens/StoreLotteryGameDetailScreen';
 import { lightTheme, darkTheme } from '../styles/colors';
 
 type ScratchOffLottery = {
@@ -101,6 +102,11 @@ export type RootStackParamList = {
   };
   StoreLotteryDashboard: {
     storeId: number;
+    storeName: string;
+  };
+  StoreLotteryGameDetail: {
+    game: any;
+    storeId: string;
     storeName: string;
   };
 };
@@ -414,6 +420,10 @@ export default function AppNavigator() {
         <Stack.Screen
           name="LotteryGameDetail"
           component={LotteryGameDetailScreen}
+        />
+        <Stack.Screen
+          name="StoreLotteryGameDetail"
+          component={StoreLotteryGameDetailScreen}
         />
       </Stack.Navigator>
     </NavigationContainer>

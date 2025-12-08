@@ -177,6 +177,7 @@ const apiRequest = async <T>(
     // Add auth token if required
     if (requiresAuth) {
       const token = await getAuthToken();
+      console.log('Auth token retrieved:', token ? `${token.substring(0, 20)}...` : 'null');
       if (!token) {
         throw new AuthenticationError('No authentication token found. Please login again.');
       }
@@ -185,12 +186,23 @@ const apiRequest = async <T>(
 
     const url = `${config.API_BASE_URL}${endpoint}`;
 
+    console.log('=== API REQUEST ===');
+    console.log('Base URL:', config.API_BASE_URL);
+    console.log('Endpoint:', endpoint);
+    console.log('Full URL:', url);
+    console.log('Method:', options.method || 'GET');
+    console.log('Headers:', JSON.stringify(headers, null, 2));
+
     const response = await fetchWithTimeout(url, {
       ...options,
       headers,
     });
 
+    console.log('Response status:', response.status);
+    console.log('Response OK:', response.ok);
+
     const result = await response.json();
+    console.log('Response body:', JSON.stringify(result, null, 2));
 
     // Handle HTTP error codes
     if (!response.ok) {
@@ -418,6 +430,7 @@ export const lotteryService = {
 
   /**
    * Get lottery games for store owners (public access, filtered by state)
+   * @deprecated Use getLotteryTypes instead
    */
   getPublicLotteries: async (state?: string): Promise<ApiResponse<any>> => {
     try {
@@ -427,6 +440,28 @@ export const lotteryService = {
       return {
         success: false,
         error: error.message || 'Failed to fetch lotteries',
+      };
+    }
+  },
+
+  /**
+   * Get lottery types based on logged-in user's state (using bearer token)
+   * Returns same data structure as super-admin/lotteries
+   */
+  getLotteryTypes: async (storeId: number): Promise<ApiResponse<any>> => {
+    try {
+      console.log('=== LOTTERY TYPES API CALL ===');
+      console.log('Endpoint: /lottery/types/store/' + storeId);
+      console.log('Store ID:', storeId);
+      console.log('Note: Sending Bearer token + store ID in URL');
+      const result = await retryFetch(() => apiRequest(`/lottery/types/store/${storeId}`));
+      console.log('Lottery Types Result:', result);
+      return result;
+    } catch (error: any) {
+      console.error('Lottery Types Error:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch lottery types',
       };
     }
   },
@@ -469,6 +504,33 @@ export const lotteryService = {
 
 export const ticketService = {
   /**
+   * Scan barcode and process ticket (sends raw barcode to backend)
+   */
+  scanTicket: async (rawBarcode: string, storeId: number): Promise<ApiResponse<any>> => {
+    try {
+      console.log('=== SCAN TICKET API CALL ===');
+      console.log('Endpoint: POST /lotteries/scan');
+      console.log('Store ID:', storeId);
+      console.log('Raw Barcode:', rawBarcode);
+
+      return await apiRequest('/lotteries/scan', {
+        method: 'POST',
+        body: JSON.stringify({
+          barcode_data: rawBarcode,
+          store_id: storeId,
+        }),
+      });
+    } catch (error: any) {
+      // Log for debugging but return clean error response
+      console.log('Scan API Error (caught):', error.message);
+      return {
+        success: false,
+        error: error.message || 'Failed to scan ticket',
+      };
+    }
+  },
+
+  /**
    * Save scanned ticket to inventory
    */
   saveTicket: async (data: TicketData): Promise<ApiResponse<any>> => {
@@ -488,13 +550,49 @@ export const ticketService = {
   /**
    * Get tickets for a store
    */
-  getTickets: async (storeId: number): Promise<ApiResponse<any>> => {
+  getTickets: async (storeId: number, state: string): Promise<ApiResponse<any>> => {
     try {
-      return await retryFetch(() => apiRequest(`/tickets?store_id=${storeId}`));
+      console.log('=== TICKET SERVICE API CALL ===');
+      console.log('Endpoint: /lottery/types');
+      console.log('Note: Only sending Bearer token in headers');
+      const result = await retryFetch(() => apiRequest(`/lottery/types`));
+      console.log('API Result:', result);
+      return result;
     } catch (error: any) {
+      console.error('API Error:', error);
       return {
         success: false,
         error: error.message || 'Failed to fetch tickets',
+      };
+    }
+  },
+
+  /**
+   * Get inventory for a store
+   */
+  getStoreInventory: async (storeId: number): Promise<ApiResponse<any>> => {
+    try {
+      console.log('=== STORE INVENTORY API CALL ===');
+      console.log('Endpoint: /lottery/store/' + storeId + '/inventory');
+      console.log('Store ID:', storeId);
+      console.log('Full URL:', `${config.API_BASE_URL}/lottery/store/${storeId}/inventory`);
+
+      const result = await retryFetch(() => apiRequest(`/lottery/store/${storeId}/inventory`));
+
+      console.log('=== INVENTORY API RESPONSE ===');
+      console.log('Result object:', result);
+      console.log('Result.success:', result.success);
+      console.log('Result.data type:', typeof result.data);
+      console.log('Result.data:', JSON.stringify(result.data, null, 2));
+      console.log('Result.error:', result.error);
+      console.log('================================');
+
+      return result;
+    } catch (error: any) {
+      console.error('Inventory API Error:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch store inventory',
       };
     }
   },
