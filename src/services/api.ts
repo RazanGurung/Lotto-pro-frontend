@@ -506,19 +506,26 @@ export const ticketService = {
   /**
    * Scan barcode and process ticket (sends raw barcode to backend)
    */
-  scanTicket: async (rawBarcode: string, storeId: number): Promise<ApiResponse<any>> => {
+  scanTicket: async (rawBarcode: string, storeId: number, direction?: 'asce' | 'desc'): Promise<ApiResponse<any>> => {
     try {
       console.log('=== SCAN TICKET API CALL ===');
       console.log('Endpoint: POST /lotteries/scan');
       console.log('Store ID:', storeId);
       console.log('Raw Barcode:', rawBarcode);
+      console.log('Direction:', direction || 'not specified');
+
+      const body: any = {
+        barcode_data: rawBarcode,
+        store_id: storeId,
+      };
+
+      if (direction) {
+        body.direction = direction;
+      }
 
       return await apiRequest('/lotteries/scan', {
         method: 'POST',
-        body: JSON.stringify({
-          barcode_data: rawBarcode,
-          store_id: storeId,
-        }),
+        body: JSON.stringify(body),
       });
     } catch (error: any) {
       // Log for debugging but return clean error response
