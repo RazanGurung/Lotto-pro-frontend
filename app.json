@@ -23,11 +23,24 @@
       },
       "package": "com.lotterypromobile.app",
       "permissions": [
+        "CAMERA",
         "CAMERA"
       ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "52634527-94a0-4f9a-9316-d3f734ddd6d7"
+      }
+    },
+    "owner": "razangurung2147",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/52634527-94a0-4f9a-9316-d3f734ddd6d7"
     }
   }
 }

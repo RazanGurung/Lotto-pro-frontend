@@ -26,10 +26,10 @@ export default function LoginScreen({ navigation }: Props) {
   const styles = createStyles(colors);
 
   const handleLogin = async () => {
-    // Validate email
-    const emailValidation = validateEmail(emailOrPhone);
-    if (!emailValidation.isValid) {
-      Alert.alert('Invalid Email', emailValidation.error);
+    // Validate input (email or account number)
+    const inputValidation = validateRequired(emailOrPhone, 'Email or Account Number');
+    if (!inputValidation.isValid) {
+      Alert.alert('Invalid Input', inputValidation.error);
       return;
     }
 
@@ -116,14 +116,14 @@ export default function LoginScreen({ navigation }: Props) {
           <Text style={styles.title}>Lottery Pro</Text>
           <Text style={styles.subtitle}>Store Management System</Text>
 
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>Email or Account Number</Text>
           <TextInput
             style={[styles.input, focusedInput === 'email' && styles.inputFocused]}
-            placeholder="Enter your email"
+            placeholder="Enter your email or account number"
             placeholderTextColor={colors.textMuted}
             value={emailOrPhone}
             onChangeText={setEmailOrPhone}
-            keyboardType="email-address"
+            keyboardType="default"
             autoCapitalize="none"
             editable={!loading}
             onFocus={() => setFocusedInput('email')}
@@ -196,7 +196,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     padding: 20,
-    paddingTop: 60,
+    paddingTop: 120,
   },
   logo: {
     width: 100,
