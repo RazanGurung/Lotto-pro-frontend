@@ -49,13 +49,19 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
     const checkCameraPermissions = async () => {
       const { status } = await Camera.getCameraPermissionsAsync();
 
+      console.log('=== CAMERA PERMISSION STATUS ===');
+      console.log('Current status:', status);
+
       if (status === 'granted') {
         setHasPermission(true);
       } else if (status === 'undetermined') {
         // Show custom prompt before system dialog
+        console.log('Showing permission prompt');
         setShowPermissionPrompt(true);
       } else {
-        setHasPermission(false);
+        // Permission was denied, try requesting again
+        console.log('Permission denied, requesting again...');
+        setShowPermissionPrompt(true);
       }
     };
 

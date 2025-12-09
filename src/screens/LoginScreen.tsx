@@ -58,6 +58,18 @@ export default function LoginScreen({ navigation }: Props) {
           await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(result.data.user));
         }
 
+        // For store account login, also save store data if available
+        if (result.data.store) {
+          console.log('Store data found in login response:', result.data.store);
+          await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(result.data.store));
+        }
+
+        console.log('=== LOGIN DATA DEBUG ===');
+        console.log('Full result.data:', JSON.stringify(result.data, null, 2));
+        console.log('result.data.user:', result.data.user);
+        console.log('result.data.store:', result.data.store);
+        console.log('========================');
+
         // Determine user type from user data or success message
         const userRole = result.data.user?.role || result.data.user?.type || result.data.user?.user_type || '';
         const successMessage = result.message || result.data?.message || result.msg || result.data?.msg || '';

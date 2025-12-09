@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '../config/env';
-import { authService } from '../services/api';
+import { authService, ticketService } from '../services/api';
 
 type Props = {
   navigation: any;
@@ -25,10 +25,27 @@ export default function StoreDashboardScreen({ navigation }: Props) {
   const loadStoreData = async () => {
     try {
       const userData = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
+      console.log('=== STORE DASHBOARD USER DATA ===');
+      console.log('Raw user data:', userData);
+
       if (userData) {
         const user = JSON.parse(userData);
-        setStoreName(user.store_name || 'Store');
-        setStoreId(user.store_id || user.id || null);
+        console.log('Parsed user object:', user);
+        console.log('All user fields:', Object.keys(user));
+        console.log('Store name field:', user.store_name);
+        console.log('Name field:', user.name);
+        console.log('Store ID field:', user.store_id);
+        console.log('ID field:', user.id);
+
+        // For store account login, the store ID should be in the data
+        const storeIdValue = user.store_id || user.id || null;
+        const storeNameValue = user.store_name || user.name || 'Store';
+
+        console.log('Final store ID:', storeIdValue);
+        console.log('Final store name:', storeNameValue);
+
+        setStoreName(storeNameValue);
+        setStoreId(storeIdValue);
       }
     } catch (error) {
       console.error('Error loading store data:', error);
@@ -130,12 +147,30 @@ export default function StoreDashboardScreen({ navigation }: Props) {
           <TouchableOpacity
             style={styles.actionCard}
             activeOpacity={0.7}
-            onPress={() => {
+            onPress={async () => {
               if (storeId) {
-                navigation.navigate('StoreLotteryDashboard', {
-                  storeId: storeId,
-                  storeName: storeName,
-                });
+                try {
+                  console.log('Fetching clerk dashboard for store:', storeId);
+                  const result = await ticketService.getClerkDashboard(storeId);
+
+                  console.log('Clerk dashboard result:', result);
+
+                  if (result.success && result.data) {
+                    // Only navigate if API call was successful
+                    navigation.navigate('StoreLotteryDashboard', {
+                      storeId: storeId,
+                      storeName: storeName,
+                    });
+                  } else {
+                    // Show error and don't navigate
+                    const errorMsg = result.error || 'Access denied. You may not have permission to view this inventory.';
+                    console.error('Clerk dashboard error:', errorMsg);
+                    Alert.alert('Access Denied', errorMsg);
+                  }
+                } catch (error: any) {
+                  console.error('Clerk dashboard exception:', error);
+                  Alert.alert('Error', error.message || 'Failed to load inventory');
+                }
               } else {
                 Alert.alert('Error', 'Store information not available');
               }
