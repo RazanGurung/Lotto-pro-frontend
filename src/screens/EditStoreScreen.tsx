@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, Switch } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -14,13 +14,25 @@ export default function EditStoreScreen({ navigation, route }: Props) {
   const styles = createStyles(colors);
   const store = route.params?.store;
 
-  const [storeName, setStoreName] = useState(store?.name || '');
+  const [storeName, setStoreName] = useState(store?.store_name || '');
   const [address, setAddress] = useState(store?.address || '');
-  const [phone, setPhone] = useState(store?.phone || '');
-  const [email, setEmail] = useState(store?.email || '');
-  const [manager, setManager] = useState(store?.manager || '');
-  const [licenseNumber, setLicenseNumber] = useState(store?.licenseNumber || '');
-  const [isActive, setIsActive] = useState(store?.status === 'Active');
+  const [city, setCity] = useState(store?.city || '');
+  const [state, setState] = useState(store?.state || '');
+  const [zipcode, setZipcode] = useState(store?.zipcode || '');
+  const [lotteryAccountNo, setLotteryAccountNo] = useState(store?.lottery_ac_no || '');
+  const [isEditingAccountNo, setIsEditingAccountNo] = useState(false);
+  const [newLotteryPassword, setNewLotteryPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Format account number to show only last 4 digits
+  const maskedAccountNumber = lotteryAccountNo
+    ? `••••${lotteryAccountNo.slice(-4)}`
+    : '••••';
+
+  const handleAccountNoFocus = () => {
+    setIsEditingAccountNo(true);
+    setLotteryAccountNo(''); // Clear the field when user starts editing
+  };
 
   const handleSave = () => {
     Alert.alert(
@@ -89,122 +101,114 @@ export default function EditStoreScreen({ navigation, route }: Props) {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Address</Text>
-            <View style={[styles.inputContainer, styles.textAreaContainer]}>
+            <View style={styles.inputContainer}>
               <Ionicons name="location-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
               <TextInput
-                style={[styles.input, styles.textArea]}
+                style={styles.input}
                 value={address}
                 onChangeText={setAddress}
-                placeholder="Enter store address"
+                placeholder="Enter street address"
                 placeholderTextColor={colors.textMuted}
-                multiline
-                numberOfLines={3}
               />
             </View>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Phone Number</Text>
+            <Text style={styles.label}>City</Text>
             <View style={styles.inputContainer}>
-              <Ionicons name="call-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
+              <Ionicons name="business-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                value={phone}
-                onChangeText={setPhone}
-                placeholder="Enter phone number"
+                value={city}
+                onChangeText={setCity}
+                placeholder="Enter city"
                 placeholderTextColor={colors.textMuted}
-                keyboardType="phone-pad"
               />
             </View>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email Address</Text>
+            <Text style={styles.label}>State</Text>
+            <View style={styles.inputContainer}>
+              <Ionicons name="flag-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                value={state}
+                onChangeText={setState}
+                placeholder="Enter state"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Zipcode</Text>
             <View style={styles.inputContainer}>
               <Ionicons name="mail-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Enter email address"
+                value={zipcode}
+                onChangeText={setZipcode}
+                placeholder="Enter zipcode"
                 placeholderTextColor={colors.textMuted}
-                keyboardType="email-address"
-                autoCapitalize="none"
+                keyboardType="numeric"
               />
             </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Store Manager</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="person-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                value={manager}
-                onChangeText={setManager}
-                placeholder="Enter manager name"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>License Number</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="document-text-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                value={licenseNumber}
-                onChangeText={setLicenseNumber}
-                placeholder="Enter license number"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
-          </View>
-
-          <View style={styles.switchGroup}>
-            <View style={styles.switchInfo}>
-              <Text style={styles.switchLabel}>Store Status</Text>
-              <Text style={styles.switchDescription}>
-                {isActive ? 'Store is currently active' : 'Store is currently inactive'}
-              </Text>
-            </View>
-            <Switch
-              value={isActive}
-              onValueChange={setIsActive}
-              trackColor={{ false: colors.border, true: colors.primary + '50' }}
-              thumbColor={isActive ? colors.primary : colors.textMuted}
-            />
           </View>
         </View>
 
-        {/* Operating Hours Section */}
+        {/* Lottery Credentials Section */}
         <View style={styles.formSection}>
-          <Text style={styles.sectionTitle}>Operating Hours</Text>
+          <Text style={styles.sectionTitle}>Lottery Credentials</Text>
 
-          <TouchableOpacity style={styles.hoursItem} activeOpacity={0.7}>
-            <View style={styles.hoursInfo}>
-              <Text style={styles.hoursDay}>Monday - Friday</Text>
-              <Text style={styles.hoursTime}>9:00 AM - 9:00 PM</Text>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Lottery Account Number</Text>
+            <View style={styles.inputContainer}>
+              <Ionicons name="key-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                value={isEditingAccountNo ? lotteryAccountNo : maskedAccountNumber}
+                onChangeText={setLotteryAccountNo}
+                onFocus={handleAccountNoFocus}
+                placeholder="Enter new lottery account number"
+                placeholderTextColor={colors.textMuted}
+                autoCapitalize="none"
+              />
             </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
+            {!isEditingAccountNo && (
+              <Text style={styles.helperText}>Tap to change account number</Text>
+            )}
+            {isEditingAccountNo && (
+              <Text style={styles.helperText}>Enter the complete new account number</Text>
+            )}
+          </View>
 
-          <TouchableOpacity style={styles.hoursItem} activeOpacity={0.7}>
-            <View style={styles.hoursInfo}>
-              <Text style={styles.hoursDay}>Saturday</Text>
-              <Text style={styles.hoursTime}>10:00 AM - 8:00 PM</Text>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Change Lottery Password</Text>
+            <View style={styles.inputContainer}>
+              <Ionicons name="lock-closed-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                value={newLotteryPassword}
+                onChangeText={setNewLotteryPassword}
+                placeholder="Enter new password (leave empty to keep current)"
+                placeholderTextColor={colors.textMuted}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeButton}
+              >
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={22}
+                  color={colors.primary}
+                />
+              </TouchableOpacity>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.hoursItem} activeOpacity={0.7}>
-            <View style={styles.hoursInfo}>
-              <Text style={styles.hoursDay}>Sunday</Text>
-              <Text style={styles.hoursTime}>Closed</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
+            <Text style={styles.helperText}>Only fill this if you want to change the password</Text>
+          </View>
         </View>
 
         {/* Danger Zone */}
@@ -309,53 +313,18 @@ const createStyles = (colors: any) => StyleSheet.create({
     minHeight: 80,
     textAlignVertical: 'top',
   },
-  switchGroup: {
-    flexDirection: 'row',
+  eyeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    justifyContent: 'center',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surface,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
-  switchInfo: {
-    flex: 1,
-    marginRight: 15,
-  },
-  switchLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  switchDescription: {
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  hoursItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surface,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  hoursInfo: {
-    flex: 1,
-  },
-  hoursDay: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  hoursTime: {
-    fontSize: 14,
-    color: colors.textSecondary,
+  helperText: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 6,
+    marginLeft: 2,
+    fontStyle: 'italic',
   },
   dangerItem: {
     flexDirection: 'row',

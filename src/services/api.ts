@@ -364,7 +364,7 @@ export const storeService = {
    */
   createStore: async (data: StoreData): Promise<ApiResponse<any>> => {
     try {
-      return await apiRequest('/store', {
+      return await apiRequest('/stores', {
         method: 'POST',
         body: JSON.stringify(data),
       });
@@ -381,7 +381,7 @@ export const storeService = {
    */
   updateStore: async (storeId: number, data: Partial<StoreData>): Promise<ApiResponse<any>> => {
     try {
-      return await apiRequest(`/store/${storeId}`, {
+      return await apiRequest(`/stores/${storeId}`, {
         method: 'PUT',
         body: JSON.stringify(data),
       });

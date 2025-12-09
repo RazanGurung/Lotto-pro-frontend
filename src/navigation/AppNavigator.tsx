@@ -7,6 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LoginScreen from '../screens/LoginScreen';
 import SignUpScreen from '../screens/SignUpScreen';
+import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
+import StoreDashboardScreen from '../screens/StoreDashboardScreen';
 import StoreListScreen from '../screens/StoreListScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import LotteryDetailScreen from '../screens/LotteryDetailScreen';
@@ -49,8 +51,10 @@ type ScratchOffLottery = {
 export type RootStackParamList = {
   Login: undefined;
   SignUp: undefined;
+  ForgotPassword: undefined;
   ThemeSelection: undefined;
   MainTabs: undefined;
+  StoreDashboard: undefined;
   StoreList: undefined;
   CreateStore: undefined;
   Profile: undefined;
@@ -326,12 +330,20 @@ export default function AppNavigator() {
           component={SignUpScreen}
         />
         <Stack.Screen
+          name="ForgotPassword"
+          component={ForgotPasswordScreen}
+        />
+        <Stack.Screen
           name="ThemeSelection"
           component={ThemeSelectionScreen}
         />
         <Stack.Screen
           name="MainTabs"
           component={MainTabNavigator}
+        />
+        <Stack.Screen
+          name="StoreDashboard"
+          component={StoreDashboardScreen}
         />
         <Stack.Screen
           name="Dashboard"

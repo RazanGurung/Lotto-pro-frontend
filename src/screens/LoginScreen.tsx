@@ -67,6 +67,8 @@ export default function LoginScreen({ navigation }: Props) {
         if (userRole === 'superadmin' || userRole === 'super_admin' || userRole === 'admin' ||
             successMessage.toLowerCase().includes('super admin')) {
           userType = 'superadmin';
+        } else if (successMessage.toLowerCase().includes('store account login successful')) {
+          userType = 'store';
         } else if (userRole === 'store_owner' || userRole === 'owner' ||
                    successMessage.toLowerCase().includes('store owner')) {
           userType = 'store_owner';
@@ -76,13 +78,25 @@ export default function LoginScreen({ navigation }: Props) {
 
         await AsyncStorage.setItem(STORAGE_KEYS.USER_TYPE, userType);
 
-        // Check if user has completed onboarding
-        const onboardingComplete = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE);
+        console.log('=== LOGIN SUCCESS ===');
+        console.log('Success Message:', successMessage);
+        console.log('User Role:', userRole);
+        console.log('Detected User Type:', userType);
+        console.log('====================');
 
-        if (onboardingComplete === 'true') {
-          navigation.replace('MainTabs');
+        // Route based on user type
+        if (userType === 'store') {
+          // Store account users go directly to StoreDashboard
+          navigation.replace('StoreDashboard');
         } else {
-          navigation.replace('ThemeSelection');
+          // Super Admin and Store Owner go through onboarding flow
+          const onboardingComplete = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE);
+
+          if (onboardingComplete === 'true') {
+            navigation.replace('MainTabs');
+          } else {
+            navigation.replace('ThemeSelection');
+          }
         }
       } else {
         Alert.alert('Login Failed', result.error || 'Invalid email or password. Please try again.');
@@ -167,7 +181,7 @@ export default function LoginScreen({ navigation }: Props) {
         )}
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.forgotPassword} onPress={() => {}}>
+      <TouchableOpacity style={styles.forgotPassword} onPress={() => navigation.navigate('ForgotPassword')}>
         <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
       </TouchableOpacity>
 
