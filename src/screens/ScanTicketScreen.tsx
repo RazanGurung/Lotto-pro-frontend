@@ -53,15 +53,18 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
       console.log('Current status:', status);
 
       if (status === 'granted') {
+        console.log('Camera permission already granted');
         setHasPermission(true);
       } else if (status === 'undetermined') {
-        // Show custom prompt before system dialog
-        console.log('Showing permission prompt');
-        setShowPermissionPrompt(true);
+        // Automatically request permission
+        console.log('Permission undetermined, requesting now...');
+        const { status: newStatus } = await Camera.requestCameraPermissionsAsync();
+        console.log('New permission status:', newStatus);
+        setHasPermission(newStatus === 'granted');
       } else {
-        // Permission was denied, try requesting again
-        console.log('Permission denied, requesting again...');
-        setShowPermissionPrompt(true);
+        // Permission was denied
+        console.log('Permission denied');
+        setHasPermission(false);
       }
     };
 
@@ -327,36 +330,66 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
 
   if (hasPermission === null) {
     return (
-      <View style={styles.container}>
-        <View style={styles.permissionContainer}>
-          <Ionicons name="camera-outline" size={64} color={colors.textMuted} />
-          <Text style={styles.message}>Requesting Camera Access...</Text>
-          <Text style={styles.submessage}>Please allow camera permission to scan lottery tickets</Text>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Scan Lottery Ticket</Text>
         </View>
-      </View>
+        <View style={styles.container}>
+          <View style={styles.permissionContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.message}>Requesting Camera Access...</Text>
+            <Text style={styles.submessage}>Please allow camera permission to scan lottery tickets</Text>
+          </View>
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (hasPermission === false) {
     return (
-      <View style={styles.container}>
-        <View style={styles.permissionContainer}>
-          <Ionicons name="lock-closed-outline" size={64} color={colors.error} />
-          <Text style={styles.message}>Camera Access Required</Text>
-          <Text style={styles.submessage}>
-            Lottery Pro needs camera access to scan lottery ticket barcodes and manage your inventory efficiently.
-          </Text>
-          <Text style={styles.instructionText}>
-            To enable camera access:
-          </Text>
-          <Text style={styles.stepText}>1. Go to your device Settings</Text>
-          <Text style={styles.stepText}>2. Find "Lottery Pro" in app list</Text>
-          <Text style={styles.stepText}>3. Enable Camera permission</Text>
-          <TouchableOpacity style={styles.button} onPress={() => navigation.goBack()}>
-            <Text style={styles.buttonText}>Go Back</Text>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
+          <Text style={styles.headerTitle}>Scan Lottery Ticket</Text>
         </View>
-      </View>
+        <View style={styles.container}>
+          <View style={styles.permissionContainer}>
+            <Ionicons name="lock-closed-outline" size={64} color={colors.error} />
+            <Text style={styles.message}>Camera Access Denied</Text>
+            <Text style={styles.submessage}>
+              Lottery Pro needs camera access to scan lottery ticket barcodes and manage your inventory efficiently.
+            </Text>
+            <Text style={styles.instructionText}>
+              To enable camera access:
+            </Text>
+            <Text style={styles.stepText}>1. Go to your device Settings</Text>
+            <Text style={styles.stepText}>2. Find "Lottery Pro" in app list</Text>
+            <Text style={styles.stepText}>3. Enable Camera permission</Text>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={async () => {
+                const { status } = await Camera.requestCameraPermissionsAsync();
+                if (status === 'granted') {
+                  setHasPermission(true);
+                }
+              }}
+            >
+              <Text style={styles.buttonText}>Request Permission Again</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: colors.textMuted, marginTop: 10 }]}
+              onPress={() => navigation.goBack()}
+            >
+              <Text style={styles.buttonText}>Go Back</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
     );
   }
 
