@@ -506,7 +506,7 @@ export const ticketService = {
   /**
    * Scan barcode and process ticket (sends raw barcode to backend)
    */
-  scanTicket: async (rawBarcode: string, storeId: number, direction?: 'asce' | 'desc'): Promise<ApiResponse<any>> => {
+  scanTicket: async (rawBarcode: string, storeId: number, direction?: 'asc' | 'desc'): Promise<ApiResponse<any>> => {
     try {
       console.log('=== SCAN TICKET API CALL ===');
       console.log('Endpoint: POST /lotteries/scan');

@@ -26,7 +26,15 @@ interface LotteryType {
   price: number;
   status: string;
   image_url?: string;
+  direction?: 'asc' | 'desc' | 'unknown';
 }
+
+// ============================================
+// 🧪 TEST MODE: Enable to force show direction selection modal
+// Set to true to test the direction selection UI
+// ⚠️ WARNING: When TRUE, inventory API will NOT be called!
+const TEST_MODE_FORCE_DIRECTION = false;  // ← Changed to false
+// ============================================
 
 export default function ScanTicketScreen({ navigation, route }: Props) {
   const colors = useTheme();
@@ -43,7 +51,8 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [pendingBarcode, setPendingBarcode] = useState<{barcode: string, type: string, lotteryName: string, imageUrl?: string} | null>(null);
   const [showDirectionSelection, setShowDirectionSelection] = useState(false);
-  const [selectedDirection, setSelectedDirection] = useState<'asce' | 'desc' | null>(null);
+  const [selectedDirection, setSelectedDirection] = useState<'asc' | 'desc' | null>(null);
+  const [directionRequired, setDirectionRequired] = useState(false);
   const scanningRef = useRef(false);
   const lastScannedData = useRef<string>('');
   const scanTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -95,10 +104,14 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
           console.log('Lottery types loaded:', types);
 
           if (Array.isArray(types)) {
-            console.log('Setting lottery types:', types.map(t => ({
-              number: t.lottery_number,
-              name: t.lottery_name
-            })));
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('📋 LOTTERY TYPES WITH DIRECTION INFO:');
+            types.forEach((t, index) => {
+              console.log(`${index + 1}. ${t.lottery_name} (${t.lottery_number})`);
+              console.log(`   - Has direction field: ${'direction' in t}`);
+              console.log(`   - Direction value: ${t.direction || 'undefined'}`);
+            });
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             setLotteryTypes(types);
           } else {
             console.error('Lottery types is not an array:', types);
@@ -121,7 +134,41 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
     setHasPermission(status === 'granted');
   };
 
-  const handleBarCodeScanned = ({ type, data }: { type: string; data: string }) => {
+  const checkIfDirectionNeeded = async (barcode: string): Promise<boolean> => {
+    try {
+      const gameNumber = barcode.substring(0, 3);
+      const bookId = barcode.substring(3, 9);
+
+      console.log('🔍 Checking if direction needed for:', gameNumber, bookId);
+
+      const inventoryResult = await ticketService.getStoreInventory(parseInt(storeId, 10));
+
+      if (inventoryResult.success && inventoryResult.data) {
+        const inventoryData = inventoryResult.data.inventory || inventoryResult.data.data || inventoryResult.data;
+
+        if (Array.isArray(inventoryData) && inventoryData.length > 0) {
+          const specificBook = inventoryData.find((item: any) => {
+            const itemGameNumber = item.lottery_game_number || item.lottery_number;
+            const itemBookId = item.pack_number || item.book_id || item.book_number;
+            return itemGameNumber === gameNumber && itemBookId === bookId;
+          });
+
+          if (specificBook && specificBook.direction && specificBook.direction !== 'unknown') {
+            console.log('✓ Book found with direction set:', specificBook.direction);
+            return false; // Direction NOT needed
+          }
+        }
+      }
+
+      console.log('✓ Direction IS needed (book not found or direction unknown)');
+      return true; // Direction IS needed
+    } catch (error) {
+      console.error('Error checking direction:', error);
+      return true; // Show direction on error (safer)
+    }
+  };
+
+  const handleBarCodeScanned = async ({ type, data }: { type: string; data: string }) => {
     // Prevent scanning while lottery types are loading
     if (lotteryTypesLoading) {
       console.log('Scan blocked - lottery types still loading');
@@ -169,6 +216,9 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
     console.log('========================');
 
     if (matchedLottery) {
+      // Check if direction is needed
+      const needsDirection = await checkIfDirectionNeeded(data);
+
       // Show confirmation popup with lottery name and image
       setPendingBarcode({
         barcode: data,
@@ -176,6 +226,8 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
         lotteryName: matchedLottery.lottery_name,
         imageUrl: matchedLottery.image_url
       });
+      setDirectionRequired(needsDirection);
+      setSelectedDirection(null); // Reset selection
       setShowConfirmation(true);
     } else {
       // Lottery not found - show error
@@ -200,7 +252,7 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
     }
   };
 
-  const processScannedBarcode = async (rawBarcode: string, barcodeType: string, direction?: 'asce' | 'desc') => {
+  const processScannedBarcode = async (rawBarcode: string, barcodeType: string, direction?: 'asc' | 'desc') => {
     try {
       setSaving(true);
 
@@ -284,59 +336,47 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
   };
 
   const handleConfirmBarcode = async () => {
-    if (pendingBarcode) {
-      setShowConfirmation(false);
+    console.log('🚀 handleConfirmBarcode CALLED');
+    console.log('directionRequired:', directionRequired);
+    console.log('selectedDirection:', selectedDirection);
 
-      // Check inventory to see if this book has direction == "unknown"
-      try {
-        console.log('=== CHECKING INVENTORY FOR DIRECTION ===');
-        const inventoryResult = await ticketService.getStoreInventory(parseInt(storeId, 10));
-
-        if (inventoryResult.success && inventoryResult.data) {
-          const inventoryData = inventoryResult.data.inventory || inventoryResult.data.data || inventoryResult.data;
-
-          // Extract first 3 digits (game number) from barcode to identify the book
-          const gameNumber = pendingBarcode.barcode.substring(0, 3);
-
-          console.log('Checking for game number:', gameNumber);
-          console.log('Inventory data:', inventoryData);
-
-          // Check if any book with this game number has direction == "unknown"
-          const bookWithUnknownDirection = Array.isArray(inventoryData)
-            ? inventoryData.find((item: any) =>
-                (item.lottery_game_number === gameNumber || item.lottery_number === gameNumber)
-                && item.direction === 'unknown'
-              )
-            : null;
-
-          console.log('Book with unknown direction:', bookWithUnknownDirection);
-
-          if (bookWithUnknownDirection) {
-            // Show direction selection modal
-            console.log('Direction is unknown, showing selection modal');
-            setShowDirectionSelection(true);
-            return; // Don't process yet, wait for direction selection
-          }
-        }
-
-        // If no unknown direction or inventory check failed, process normally
-        console.log('No unknown direction found, processing normally');
-        processScannedBarcode(pendingBarcode.barcode, pendingBarcode.type);
-        setPendingBarcode(null);
-      } catch (error) {
-        console.error('Error checking inventory:', error);
-        // On error, process normally without direction
-        processScannedBarcode(pendingBarcode.barcode, pendingBarcode.type);
-        setPendingBarcode(null);
-      }
+    if (!pendingBarcode) {
+      console.log('⚠️ No pending barcode');
+      return;
     }
+
+    // If direction is required but not selected, show error
+    if (directionRequired && !selectedDirection) {
+      Alert.alert(
+        'Direction Required',
+        'Please select Ascending or Descending direction before confirming.'
+      );
+      return;
+    }
+
+    setShowConfirmation(false);
+
+    console.log('✓ Processing barcode with direction:', selectedDirection || 'none');
+    processScannedBarcode(pendingBarcode.barcode, pendingBarcode.type, selectedDirection || undefined);
+    setPendingBarcode(null);
+    setSelectedDirection(null);
+    setDirectionRequired(false);
   };
 
-  const handleDirectionSelected = (direction: 'asce' | 'desc') => {
+  const handleDirectionSelected = (direction: 'asc' | 'desc') => {
+    console.log('');
+    console.log('═══════════════════════════════════════');
+    console.log('📍 DIRECTION SELECTED:', direction.toUpperCase());
+    console.log('═══════════════════════════════════════');
+    console.log('');
+
     setSelectedDirection(direction);
     setShowDirectionSelection(false);
 
     if (pendingBarcode) {
+      console.log('Processing barcode with direction:', direction);
+      console.log('Barcode:', pendingBarcode.barcode);
+      console.log('Lottery:', pendingBarcode.lotteryName);
       processScannedBarcode(pendingBarcode.barcode, pendingBarcode.type, direction);
       setPendingBarcode(null);
       setSelectedDirection(null);
@@ -349,7 +389,7 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
     resetScanner();
   };
 
-  const handleManualEntry = () => {
+  const handleManualEntry = async () => {
     if (!manualBarcode.trim()) {
       Alert.alert('Error', 'Please enter a barcode number');
       return;
@@ -366,6 +406,9 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
     );
 
     if (matchedLottery) {
+      // Check if direction is needed
+      const needsDirection = await checkIfDirectionNeeded(enteredBarcode);
+
       // Show confirmation popup with lottery name and image
       setPendingBarcode({
         barcode: enteredBarcode,
@@ -373,6 +416,8 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
         lotteryName: matchedLottery.lottery_name,
         imageUrl: matchedLottery.image_url
       });
+      setDirectionRequired(needsDirection);
+      setSelectedDirection(null); // Reset selection
       setShowConfirmation(true);
     } else {
       // Lottery not found - show error
@@ -665,8 +710,74 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
               </Text>
             </View>
 
+            {directionRequired && (
+              <>
+                <View style={styles.directionSectionInModal}>
+                  <View style={styles.directionHeaderInModal}>
+                    <Ionicons name="swap-vertical" size={24} color={colors.primary} />
+                    <Text style={styles.directionTitleInModal}>Select Book Direction</Text>
+                  </View>
+                  <Text style={styles.directionDescInModal}>
+                    Choose how tickets are arranged in this book:
+                  </Text>
+
+                  <View style={styles.directionButtonsInModal}>
+                    <TouchableOpacity
+                      style={[
+                        styles.directionBtnInModal,
+                        styles.ascendingBtnInModal,
+                        selectedDirection === 'asc' && styles.directionBtnSelected
+                      ]}
+                      onPress={() => setSelectedDirection('asc')}
+                      disabled={saving}
+                    >
+                      <Ionicons name="arrow-up" size={24} color={selectedDirection === 'asc' ? colors.white : colors.success} />
+                      <Text style={[
+                        styles.directionBtnTextInModal,
+                        selectedDirection === 'asc' && styles.directionBtnTextSelected
+                      ]}>
+                        Ascending
+                      </Text>
+                      <Text style={[
+                        styles.directionBtnDescInModal,
+                        selectedDirection === 'asc' && styles.directionBtnDescSelected
+                      ]}>
+                        Lowest → Highest
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.directionBtnInModal,
+                        styles.descendingBtnInModal,
+                        selectedDirection === 'desc' && styles.directionBtnSelected
+                      ]}
+                      onPress={() => setSelectedDirection('desc')}
+                      disabled={saving}
+                    >
+                      <Ionicons name="arrow-down" size={24} color={selectedDirection === 'desc' ? colors.white : colors.info} />
+                      <Text style={[
+                        styles.directionBtnTextInModal,
+                        selectedDirection === 'desc' && styles.directionBtnTextSelected
+                      ]}>
+                        Descending
+                      </Text>
+                      <Text style={[
+                        styles.directionBtnDescInModal,
+                        selectedDirection === 'desc' && styles.directionBtnDescSelected
+                      ]}>
+                        Highest → Lowest
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </>
+            )}
+
             <Text style={styles.confirmationQuestion}>
-              Is this the correct lottery ticket?
+              {directionRequired && !selectedDirection
+                ? 'Please select direction before confirming'
+                : 'Is this the correct lottery ticket?'}
             </Text>
 
             <View style={styles.confirmationActions}>
@@ -722,7 +833,7 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
             <View style={styles.directionButtons}>
               <TouchableOpacity
                 style={[styles.directionButton, styles.ascendingButton]}
-                onPress={() => handleDirectionSelected('asce')}
+                onPress={() => handleDirectionSelected('asc')}
                 disabled={saving}
               >
                 <Ionicons name="arrow-up" size={32} color={colors.white} />
@@ -1300,5 +1411,70 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textMuted,
     fontSize: 16,
     fontWeight: '600',
+  },
+  directionSectionInModal: {
+    marginVertical: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.border,
+  },
+  directionHeaderInModal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  directionTitleInModal: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+  },
+  directionDescInModal: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  directionButtonsInModal: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  directionBtnInModal: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 10,
+    borderWidth: 2,
+    alignItems: 'center',
+    gap: 4,
+  },
+  ascendingBtnInModal: {
+    borderColor: colors.success,
+    backgroundColor: colors.success + '10',
+  },
+  descendingBtnInModal: {
+    borderColor: colors.info,
+    backgroundColor: colors.info + '10',
+  },
+  directionBtnSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  directionBtnTextInModal: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  directionBtnTextSelected: {
+    color: colors.white,
+  },
+  directionBtnDescInModal: {
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  directionBtnDescSelected: {
+    color: colors.white,
+    opacity: 0.9,
   },
 });
