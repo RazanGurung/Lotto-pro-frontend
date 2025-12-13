@@ -7,6 +7,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { storeService } from '../services/api';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { STORAGE_KEYS } from '../config/env';
 
 type StoreListScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'StoreList'>;
 
@@ -34,12 +36,28 @@ export default function StoreListScreen({ navigation }: Props) {
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [ownerName, setOwnerName] = useState<string>('');
 
-  useFocusEffect(
-    React.useCallback(() => {
-      fetchStores();
-    }, [])
-  );
+  useEffect(() => {
+    fetchOwnerName();
+    fetchStores();
+  }, []);
+
+  const fetchOwnerName = async () => {
+    try {
+      const userData = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
+      if (userData) {
+        const user = JSON.parse(userData);
+        // Try different possible field names for the user's name
+        const fullName = user.full_name || user.name || user.owner_name || '';
+        // Extract only the first name
+        const firstName = fullName.split(' ')[0];
+        setOwnerName(firstName);
+      }
+    } catch (error) {
+      console.error('Error fetching owner name:', error);
+    }
+  };
 
   const fetchStores = async () => {
     try {
@@ -164,8 +182,10 @@ export default function StoreListScreen({ navigation }: Props) {
       <View style={styles.headerSection}>
         <View style={styles.topBar}>
           <View>
-            <Text style={styles.greeting}>Welcome back! 👋</Text>
-            <Text style={styles.subtitle}>Manage your lottery stores</Text>
+            <Text style={styles.greeting}>
+              Welcome back{ownerName ? `, ${ownerName}` : ''}! 👋
+            </Text>
+            <Text style={styles.subtitle}>Manage your store's lottery</Text>
           </View>
         </View>
 

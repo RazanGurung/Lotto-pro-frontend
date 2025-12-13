@@ -23,6 +23,8 @@ export default function StoreLotteryGameDetailScreen({ navigation, route }: Prop
 
   const [loading, setLoading] = useState(true);
   const [inventoryCount, setInventoryCount] = useState(0);
+  const [bookCount, setBookCount] = useState(0);
+  const [books, setBooks] = useState<any[]>([]);
 
   useEffect(() => {
     fetchInventory();
@@ -31,16 +33,47 @@ export default function StoreLotteryGameDetailScreen({ navigation, route }: Prop
   const fetchInventory = async () => {
     try {
       setLoading(true);
-      // Fetch inventory for this specific lottery game
-      const result = await ticketService.getTickets(storeId, game.lottery_number);
+      console.log('Fetching inventory for lottery_id:', game.lottery_id);
+
+      // Fetch inventory for the store
+      const result = await ticketService.getStoreInventory(storeId);
 
       if (result.success && result.data) {
-        const tickets = result.data.tickets || result.data.data || result.data;
-        const count = Array.isArray(tickets) ? tickets.length : 0;
-        setInventoryCount(count);
+        const inventoryData = result.data.inventory || result.data.data || result.data;
+
+        if (Array.isArray(inventoryData)) {
+          // Find inventory books for this specific lottery game
+          const booksForThisGame = inventoryData.filter(
+            (book: any) => book.lottery_id === game.lottery_id && book.status === 'active'
+          );
+
+          // Sum up current_count from all books for this lottery
+          const totalCount = booksForThisGame.reduce(
+            (sum: number, book: any) => sum + (book.current_count || 0),
+            0
+          );
+
+          console.log('Books found for this game:', booksForThisGame.length);
+          console.log('Total remaining tickets:', totalCount);
+
+          setBooks(booksForThisGame);
+          setBookCount(booksForThisGame.length);
+          setInventoryCount(totalCount);
+        } else {
+          setBooks([]);
+          setBookCount(0);
+          setInventoryCount(0);
+        }
+      } else {
+        setBooks([]);
+        setBookCount(0);
+        setInventoryCount(0);
       }
     } catch (error) {
       console.error('Error fetching inventory:', error);
+      setBooks([]);
+      setBookCount(0);
+      setInventoryCount(0);
     } finally {
       setLoading(false);
     }
@@ -97,11 +130,11 @@ export default function StoreLotteryGameDetailScreen({ navigation, route }: Prop
             </View>
           )}
 
-          {/* Assignment Status Badge */}
+          {/* Activation Status Badge */}
           {!isAssignedToStore && (
             <View style={styles.notAssignedBadge}>
               <Ionicons name="lock-closed" size={16} color={colors.white} />
-              <Text style={styles.notAssignedText}>NOT ASSIGNED</Text>
+              <Text style={styles.notAssignedText}>NOT ACTIVATED</Text>
             </View>
           )}
         </View>
@@ -138,10 +171,65 @@ export default function StoreLotteryGameDetailScreen({ navigation, route }: Prop
                   </View>
                   <View style={styles.inventoryInfo}>
                     <Text style={styles.inventoryCount}>{inventoryCount}</Text>
-                    <Text style={styles.inventoryLabel}>Tickets in Stock</Text>
+                    <Text style={styles.inventoryLabel}>Total Tickets in Stock</Text>
+                    {bookCount > 0 && (
+                      <Text style={styles.inventoryBooks}>{bookCount} {bookCount === 1 ? 'Book' : 'Books'}</Text>
+                    )}
                     <Text style={[styles.inventoryStatus, { color: stockInfo.color }]}>{stockInfo.label}</Text>
                   </View>
                 </View>
+
+                {/* Book Details List */}
+                {books.length > 0 && (
+                  <View style={styles.booksListContainer}>
+                    <Text style={styles.booksListTitle}>Active Books:</Text>
+                    {books.map((book, index) => (
+                      <View key={book.id} style={styles.bookItem}>
+                        <View style={styles.bookHeader}>
+                          <View style={styles.bookIconBadge}>
+                            <Ionicons name="book" size={16} color={colors.primary} />
+                          </View>
+                          <View style={styles.bookInfo}>
+                            <Text style={styles.bookId}>Book #{book.serial_number}</Text>
+                            <Text style={styles.bookDirection}>
+                              Direction: {book.direction === 'asc' ? 'Ascending' : 'Descending'}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.bookStats}>
+                          <View style={styles.bookStat}>
+                            <Text style={styles.bookStatLabel}>Remaining</Text>
+                            <Text style={styles.bookStatValue}>{book.current_count}</Text>
+                          </View>
+                          <View style={styles.bookStatDivider} />
+                          <View style={styles.bookStat}>
+                            <Text style={styles.bookStatLabel}>Total</Text>
+                            <Text style={styles.bookStatValue}>{book.total_count}</Text>
+                          </View>
+                          <View style={styles.bookStatDivider} />
+                          <View style={styles.bookStat}>
+                            <Text style={styles.bookStatLabel}>Sold</Text>
+                            <Text style={styles.bookStatValue}>{book.total_count - book.current_count}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.bookProgressBar}>
+                          <View
+                            style={[
+                              styles.bookProgressFill,
+                              {
+                                width: `${((book.total_count - book.current_count) / book.total_count * 100).toFixed(0)}%`,
+                                backgroundColor: colors.success
+                              }
+                            ]}
+                          />
+                        </View>
+                        <Text style={styles.bookProgressText}>
+                          {((book.total_count - book.current_count) / book.total_count * 100).toFixed(1)}% sold
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
 
                 {/* Progress Bar */}
                 {inventoryCount > 0 && (
@@ -214,10 +302,10 @@ export default function StoreLotteryGameDetailScreen({ navigation, route }: Prop
           </View>
 
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Assignment Status</Text>
+            <Text style={styles.infoLabel}>Activation Status</Text>
             <View style={[styles.assignmentBadge, { backgroundColor: isAssignedToStore ? colors.success + '15' : colors.error + '15' }]}>
               <Text style={[styles.assignmentText, { color: isAssignedToStore ? colors.success : colors.error }]}>
-                {isAssignedToStore ? 'Assigned' : 'Not Assigned'}
+                {isAssignedToStore ? 'Activated' : 'Not Activated'}
               </Text>
             </View>
           </View>
@@ -247,14 +335,14 @@ export default function StoreLotteryGameDetailScreen({ navigation, route }: Prop
         <View style={styles.bottomPadding} />
       </ScrollView>
 
-      {/* NOT ASSIGNED Overlay - Shows when lottery is not assigned to this store */}
+      {/* NOT ACTIVATED Overlay - Shows when lottery is not activated for this store */}
       {!isAssignedToStore && (
         <View style={styles.notAssignedOverlay}>
           <View style={styles.notAssignedOverlayBadge}>
             <Ionicons name="lock-closed" size={28} color={colors.white} />
-            <Text style={styles.notAssignedOverlayText}>NOT ASSIGNED</Text>
+            <Text style={styles.notAssignedOverlayText}>NOT ACTIVATED</Text>
             <Text style={styles.notAssignedOverlaySubtext}>
-              This lottery game is not assigned to your store yet
+              You do not stock this lottery game at your store
             </Text>
           </View>
         </View>
@@ -439,10 +527,104 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 2,
   },
+  inventoryBooks: {
+    fontSize: 13,
+    color: colors.textMuted,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
   inventoryStatus: {
     fontSize: 12,
     fontWeight: '600',
     marginTop: 4,
+  },
+  booksListContainer: {
+    marginTop: 16,
+  },
+  booksListTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 12,
+  },
+  bookItem: {
+    backgroundColor: colors.background,
+    padding: 14,
+    borderRadius: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  bookHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  bookIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  bookInfo: {
+    flex: 1,
+  },
+  bookId: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 2,
+  },
+  bookDirection: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  bookStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingVertical: 8,
+    backgroundColor: colors.backgroundDark,
+    borderRadius: 8,
+  },
+  bookStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  bookStatLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
+  bookStatValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+  },
+  bookStatDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: colors.border,
+  },
+  bookProgressBar: {
+    height: 6,
+    backgroundColor: colors.border,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  bookProgressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  bookProgressText: {
+    fontSize: 11,
+    color: colors.textMuted,
+    textAlign: 'center',
   },
   progressContainer: {
     marginTop: 8,

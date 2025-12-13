@@ -264,12 +264,13 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
         const ticketInfo = result.data || {};
 
         Alert.alert(
-          '✓ Ticket Scanned Successfully',
-          `${ticketInfo.lottery_game_name || 'Lottery Ticket'}\n\nGame #${ticketInfo.lottery_game_number || 'N/A'}\nPack: ${ticketInfo.pack_number || 'N/A'}\nTicket: ${ticketInfo.ticket_number || 'N/A'}\nPrice: $${ticketInfo.price || '0.00'}\n\n━━━━━━━━━━━━━━━━━\nBarcode Type: ${barcodeType}\nRaw Data: ${rawBarcode}\n\n✓ Ticket added to inventory`,
+          'Ticket Scanned Successfully',
+          `${ticketInfo.lottery_game_name || 'Lottery Ticket'} added to inventory`,
           [
             {
               text: 'Scan Another',
               onPress: () => resetScanner(),
+              style: 'cancel'
             },
             {
               text: 'View Inventory',

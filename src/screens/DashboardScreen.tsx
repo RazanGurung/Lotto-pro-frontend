@@ -330,12 +330,12 @@ export default function DashboardScreen({ route, navigation }: Props) {
           )}
         </View>
 
-        {/* Inactive Overlay - Shows when lottery is not assigned to this store */}
+        {/* Inactive Overlay - Shows when lottery is not activated for this store */}
         {!isAssignedToStore && (
           <View style={styles.inactiveOverlay}>
             <View style={styles.inactiveBadge}>
               <Ionicons name="lock-closed" size={24} color={colors.white} />
-              <Text style={styles.inactiveText}>NOT ASSIGNED</Text>
+              <Text style={styles.inactiveText}>NOT ACTIVATED</Text>
             </View>
           </View>
         )}
@@ -409,7 +409,7 @@ export default function DashboardScreen({ route, navigation }: Props) {
         <View style={styles.infoBanner}>
           <Ionicons name="information-circle" size={16} color={colors.primary} />
           <Text style={styles.infoBannerText}>
-            {lotteries.filter(l => l.is_assigned).length} assigned • {lotteries.filter(l => !l.is_assigned).length} not assigned
+            {lotteries.filter(l => l.is_assigned).length} activated • {lotteries.filter(l => !l.is_assigned).length} not activated
           </Text>
         </View>
       </View>
