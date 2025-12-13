@@ -51,17 +51,21 @@ interface InventoryBook {
   created_at: string;
 }
 
-interface LotteryInventory {
+interface BookInventoryCard {
+  // Book details
+  book_id: number;
+  serial_number: string;
+  total_count: number;
+  current_count: number;
+  direction: 'asc' | 'desc';
+  sold_count: number;
+  book_value: number;
+
+  // Lottery details (for display)
   lottery_id: number;
   lottery_game_number: string;
   lottery_game_name: string;
-  books: InventoryBook[];
-  total_books: number;
-  total_tickets: number;
-  remaining_tickets: number;
-  sold_tickets: number;
   price: number;
-  total_value: number;
   status?: string;
   image_url?: string;
 }
@@ -98,7 +102,7 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [inventory, setInventory] = useState<LotteryInventory[]>([]);
+  const [inventory, setInventory] = useState<BookInventoryCard[]>([]);
   const [recentTickets, setRecentTickets] = useState<RecentTicket[]>([]);
   const [lotteryTypes, setLotteryTypes] = useState<any[]>([]);
   const [stats, setStats] = useState<DashboardStats>({
@@ -268,70 +272,66 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
       lotteryTypeMap.set(lottery.lottery_id, lottery);
     });
 
-    // Group books by lottery_id
-    const gameMap = new Map<number, LotteryInventory>();
+    // Create individual cards for each book
+    const bookCards: BookInventoryCard[] = [];
+    const uniqueGameIds = new Set<number>();
 
     inventoryBooks.forEach((book, index) => {
       console.log(`Processing book ${index}:`, book);
-      const lotteryId = book.lottery_id;
-      const lotteryType = lotteryTypeMap.get(lotteryId);
+      const lotteryType = lotteryTypeMap.get(book.lottery_id);
 
       if (!lotteryType) {
-        console.warn(`⚠️ No lottery type found for lottery_id ${lotteryId}`);
+        console.warn(`⚠️ No lottery type found for lottery_id ${book.lottery_id}`);
         return;
       }
 
-      if (!gameMap.has(lotteryId)) {
-        gameMap.set(lotteryId, {
-          lottery_id: lotteryId,
-          lottery_game_number: lotteryType.lottery_number,
-          lottery_game_name: lotteryType.lottery_name,
-          books: [],
-          total_books: 0,
-          total_tickets: 0,
-          remaining_tickets: 0,
-          sold_tickets: 0,
-          price: parseFloat(lotteryType.price) || 0,
-          total_value: 0,
-          status: lotteryType.status,
-          image_url: lotteryType.image_url,
-        });
-      }
+      uniqueGameIds.add(book.lottery_id);
 
-      const game = gameMap.get(lotteryId)!;
-      game.books.push(book);
-      game.total_books += 1;
-      game.total_tickets += book.total_count;
-      game.remaining_tickets += book.current_count;
-      game.sold_tickets += (book.total_count - book.current_count);
+      const price = parseFloat(lotteryType.price) || 0;
+      const soldCount = book.total_count - book.current_count;
+      const bookValue = book.current_count * price;
+
+      bookCards.push({
+        // Book details
+        book_id: book.id,
+        serial_number: book.serial_number,
+        total_count: book.total_count,
+        current_count: book.current_count,
+        direction: book.direction,
+        sold_count: soldCount,
+        book_value: bookValue,
+
+        // Lottery details
+        lottery_id: book.lottery_id,
+        lottery_game_number: lotteryType.lottery_number,
+        lottery_game_name: lotteryType.lottery_name,
+        price: price,
+        status: lotteryType.status,
+        image_url: lotteryType.image_url,
+      });
     });
-
-    // Calculate total values
-    gameMap.forEach((game) => {
-      game.total_value = game.remaining_tickets * game.price;
-    });
-
-    const inventoryData = Array.from(gameMap.values());
 
     // Calculate stats
-    const totalValue = inventoryData.reduce((sum, game) => sum + game.total_value, 0);
-    const totalBooks = inventoryData.reduce((sum, game) => sum + game.total_books, 0);
-    const totalTickets = inventoryData.reduce((sum, game) => sum + game.remaining_tickets, 0);
+    const totalValue = bookCards.reduce((sum, card) => sum + card.book_value, 0);
+    const totalBooks = bookCards.length;
+    const totalTickets = bookCards.reduce((sum, card) => sum + card.current_count, 0);
+    const totalGames = uniqueGameIds.size;
 
     console.log('=== PROCESSED RESULTS ===');
-    console.log('Inventory games:', inventoryData.length);
+    console.log('Total book cards:', bookCards.length);
+    console.log('Unique games:', totalGames);
     console.log('Stats:', {
       totalValue,
       totalBooks,
       totalTickets,
-      totalGames: inventoryData.length
+      totalGames
     });
 
-    setInventory(inventoryData);
+    setInventory(bookCards);
     setRecentTickets([]); // No recent tickets in this data structure
     setStats({
       total_inventory_value: totalValue,
-      total_games: inventoryData.length,
+      total_games: totalGames,
       total_packs: totalBooks,
       total_tickets: totalTickets,
       last_updated: new Date().toISOString(),
@@ -453,15 +453,17 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
               </TouchableOpacity>
             </View>
           ) : (
-            inventory.map((game, index) => {
-              const isActive = game.status?.toLowerCase() === 'active';
+            inventory.map((book, index) => {
+              const isActive = book.status?.toLowerCase() === 'active';
+              const soldPercentage = (book.sold_count / book.total_count) * 100;
+
               return (
-                <View key={index} style={styles.inventoryCard}>
+                <View key={book.book_id} style={styles.inventoryCard}>
                   <View style={styles.inventoryHeader}>
-                    {game.image_url ? (
+                    {book.image_url ? (
                       <View style={styles.inventoryImageContainer}>
                         <Image
-                          source={{ uri: game.image_url }}
+                          source={{ uri: book.image_url }}
                           style={styles.inventoryImage}
                           resizeMode="cover"
                         />
@@ -472,37 +474,35 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
                       </View>
                     )}
                     <View style={styles.inventoryInfo}>
-                      <Text style={styles.inventoryGameName}>{game.lottery_game_name}</Text>
-                      <Text style={styles.inventoryGameNumber}>Game #{game.lottery_game_number}</Text>
-                      {game.books && game.books.length > 0 && (
-                        <Text style={styles.inventoryPackNumbers}>
-                          Books: {game.books.map(b => b.serial_number).join(', ')}
-                        </Text>
-                      )}
+                      <Text style={styles.inventoryGameName}>{book.lottery_game_name}</Text>
+                      <Text style={styles.inventoryGameNumber}>Game #{book.lottery_game_number}</Text>
+                      <Text style={styles.inventoryPackNumbers}>
+                        Book: {book.serial_number}
+                      </Text>
                     </View>
                     <View style={styles.inventoryValue}>
-                      <Text style={styles.inventoryPrice}>{formatCurrency(game.total_value)}</Text>
+                      <Text style={styles.inventoryPrice}>{formatCurrency(book.book_value)}</Text>
                     </View>
                   </View>
 
                   <View style={styles.inventoryStats}>
                     <View style={styles.inventoryStat}>
-                      <Text style={styles.inventoryStatValue}>{game.total_books}</Text>
-                      <Text style={styles.inventoryStatLabel}>Books</Text>
+                      <Text style={styles.inventoryStatValue}>{book.total_count}</Text>
+                      <Text style={styles.inventoryStatLabel}>Total</Text>
                     </View>
                     <View style={styles.inventoryStatDivider} />
                     <View style={styles.inventoryStat}>
-                      <Text style={styles.inventoryStatValue}>{game.remaining_tickets}</Text>
+                      <Text style={styles.inventoryStatValue}>{book.current_count}</Text>
                       <Text style={styles.inventoryStatLabel}>Remaining</Text>
                     </View>
                     <View style={styles.inventoryStatDivider} />
                     <View style={styles.inventoryStat}>
-                      <Text style={styles.inventoryStatValue}>{game.sold_tickets}</Text>
+                      <Text style={styles.inventoryStatValue}>{book.sold_count}</Text>
                       <Text style={styles.inventoryStatLabel}>Sold</Text>
                     </View>
                     <View style={styles.inventoryStatDivider} />
                     <View style={styles.inventoryStat}>
-                      <Text style={styles.inventoryStatValue}>{formatCurrency(game.price)}</Text>
+                      <Text style={styles.inventoryStatValue}>{formatCurrency(book.price)}</Text>
                       <Text style={styles.inventoryStatLabel}>Price</Text>
                     </View>
                   </View>
@@ -513,12 +513,12 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
                         <View
                           style={[
                             styles.inventoryProgressFill,
-                            { width: `${(game.sold_tickets / game.total_tickets * 100).toFixed(0)}%` }
+                            { width: `${soldPercentage.toFixed(0)}%` }
                           ]}
                         />
                       </View>
                       <Text style={styles.inventoryProgressText}>
-                        {((game.sold_tickets / game.total_tickets) * 100).toFixed(1)}% sold
+                        {soldPercentage.toFixed(1)}% sold • {book.direction === 'asc' ? 'Ascending' : 'Descending'}
                       </Text>
                     </View>
                   </View>
