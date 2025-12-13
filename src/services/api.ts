@@ -632,4 +632,34 @@ export const ticketService = {
       };
     }
   },
+
+  /**
+   * Get daily report for a store
+   */
+  getDailyReport: async (storeId: number, date: string): Promise<ApiResponse<any>> => {
+    try {
+      console.log('=== DAILY REPORT API CALL ===');
+      console.log('Endpoint: /reports/store/' + storeId + '/daily?date=' + date);
+      console.log('Store ID:', storeId);
+      console.log('Date:', date);
+      console.log('Full URL:', `${config.API_BASE_URL}/reports/store/${storeId}/daily?date=${date}`);
+
+      const result = await retryFetch(() => apiRequest(`/reports/store/${storeId}/daily?date=${date}`));
+
+      console.log('=== DAILY REPORT API RESPONSE ===');
+      console.log('Result object:', result);
+      console.log('Result.success:', result.success);
+      console.log('Result.data:', JSON.stringify(result.data, null, 2));
+      console.log('Result.error:', result.error);
+      console.log('====================================');
+
+      return result;
+    } catch (error: any) {
+      console.error('Daily Report API Error:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch daily report',
+      };
+    }
+  },
 };

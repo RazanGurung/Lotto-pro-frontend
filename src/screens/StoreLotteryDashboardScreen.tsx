@@ -44,10 +44,10 @@ interface InventoryBook {
   store_id: number;
   lottery_id: number;
   serial_number: string;
-  total_count: number;
-  current_count: number;
+  total_count: number; // Total number of tickets in book (e.g., 30 for tickets 0-29)
+  current_count: number; // Current ticket number scanned (e.g., 7 means ticket #7)
   direction: 'asc' | 'desc';
-  status: string;
+  status: string; // Book status: 'active' (unlocked/scanned) or 'inactive' (locked/not scanned yet)
   created_at: string;
 }
 
@@ -56,7 +56,7 @@ interface BookInventoryCard {
   book_id: number;
   serial_number: string;
   total_count: number;
-  current_count: number;
+  current_count: number; // Remaining tickets count (calculated based on direction)
   direction: 'asc' | 'desc';
   sold_count: number;
   book_value: number;
@@ -66,7 +66,7 @@ interface BookInventoryCard {
   lottery_game_number: string;
   lottery_game_name: string;
   price: number;
-  status?: string;
+  status?: string; // Book status: 'active' (unlocked) or 'inactive' (locked)
   image_url?: string;
 }
 
@@ -122,6 +122,7 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
 
   /**
    * Get cached lottery types if available and not expired
+   * Validates that cached data includes image URLs
    */
   const getCachedLotteryTypes = async (storeId: number): Promise<any[] | null> => {
     try {
@@ -133,7 +134,17 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
         const age = Date.now() - timestamp;
 
         if (age < CACHE_DURATION_MS) {
-          console.log('✅ Using cached lottery types (age: ' + Math.round(age / 1000 / 60) + ' minutes)');
+          // Check if data is valid array
+          if (!Array.isArray(data) || data.length === 0) {
+            console.log('⚠️ Invalid cached data, invalidating cache');
+            await AsyncStorage.removeItem(cacheKey);
+            return null;
+          }
+
+          // Count how many items have images
+          const itemsWithImages = data.filter(item => item.image_url).length;
+          console.log(`✅ Using cached lottery types (age: ${Math.round(age / 1000 / 60)} min, ${itemsWithImages}/${data.length} with images)`);
+
           return data;
         } else {
           console.log('⏰ Cache expired, will fetch fresh data');
@@ -152,12 +163,20 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
    */
   const setCachedLotteryTypes = async (storeId: number, data: any[]) => {
     try {
+      // Validate data is a valid array before caching
+      if (!Array.isArray(data) || data.length === 0) {
+        console.log('⚠️ Not caching empty or invalid data');
+        return;
+      }
+
       const cacheKey = `${LOTTERY_TYPES_CACHE_KEY}_${storeId}`;
       await AsyncStorage.setItem(cacheKey, JSON.stringify({
         data,
         timestamp: Date.now()
       }));
-      console.log('💾 Lottery types cached successfully');
+
+      const itemsWithImages = data.filter(item => item.image_url).length;
+      console.log(`💾 Lottery types cached (${data.length} items, ${itemsWithImages} with images)`);
     } catch (error) {
       console.error('Error saving cache:', error);
     }
@@ -199,6 +218,17 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
           lotteryTypesData = lotteryTypesResult.data.lotteryTypes || lotteryTypesResult.data.data || lotteryTypesResult.data;
           if (Array.isArray(lotteryTypesData)) {
             console.log('Lottery types loaded:', lotteryTypesData.length);
+
+            // Log first item to check image_url
+            if (lotteryTypesData.length > 0) {
+              console.log('First lottery type sample:', {
+                lottery_id: lotteryTypesData[0].lottery_id,
+                lottery_name: lotteryTypesData[0].lottery_name,
+                image_url: lotteryTypesData[0].image_url,
+                has_image: !!lotteryTypesData[0].image_url
+              });
+            }
+
             await setCachedLotteryTypes(storeId, lotteryTypesData);
           }
         } else {
@@ -285,18 +315,55 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
         return;
       }
 
+      console.log(`Lottery type for book ${index}:`, {
+        lottery_id: lotteryType.lottery_id,
+        lottery_name: lotteryType.lottery_name,
+        image_url: lotteryType.image_url,
+        has_image: !!lotteryType.image_url
+      });
+
       uniqueGameIds.add(book.lottery_id);
 
       const price = parseFloat(lotteryType.price) || 0;
-      const soldCount = book.total_count - book.current_count;
-      const bookValue = book.current_count * price;
+
+      // Calculate sold and remaining based on direction
+      // current_count is the current ticket number (e.g., 7)
+      // total_count is the total number of tickets (e.g., 30 for tickets 0-29)
+      let soldCount = 0;
+      let remainingCount = 0;
+
+      if (book.direction === 'asc') {
+        // Ascending: tickets sold from 0 upwards (0, 1, 2, ..., current_count)
+        // If current_count = 7, then tickets 0-7 are sold (8 tickets)
+        soldCount = book.current_count + 1;
+        remainingCount = book.total_count - soldCount;
+      } else {
+        // Descending: tickets sold from max downwards
+        // If total = 30 (0-29) and current_count = 7, then tickets 29-8 are sold (22 tickets)
+        soldCount = book.total_count - book.current_count - 1;
+        remainingCount = book.current_count + 1;
+      }
+
+      const bookValue = remainingCount * price;
+
+      console.log(`Book ${index} calculation:`, {
+        lottery_name: lotteryType.lottery_name,
+        direction: book.direction,
+        total_count: book.total_count,
+        current_count: book.current_count,
+        sold: soldCount,
+        remaining: remainingCount,
+        bookValue,
+        book_status: book.status,
+        lottery_status: lotteryType.status
+      });
 
       bookCards.push({
         // Book details
         book_id: book.id,
         serial_number: book.serial_number,
         total_count: book.total_count,
-        current_count: book.current_count,
+        current_count: remainingCount, // Store remaining count for display
         direction: book.direction,
         sold_count: soldCount,
         book_value: bookValue,
@@ -306,7 +373,7 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
         lottery_game_number: lotteryType.lottery_number,
         lottery_game_name: lotteryType.lottery_name,
         price: price,
-        status: lotteryType.status,
+        status: book.status, // Use book status from inventory, not lottery type status
         image_url: lotteryType.image_url,
       });
     });
@@ -327,7 +394,46 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
       totalGames
     });
 
-    setInventory(bookCards);
+    // Debug: Check status values before sorting
+    console.log('=== BEFORE SORTING ===');
+    console.log('Books before sort:', bookCards.map(b => ({
+      name: b.lottery_game_name,
+      status: b.status,
+      status_lower: b.status?.toLowerCase(),
+      price: b.price
+    })));
+
+    // Sort books: active first (unlocked), inactive last (locked), then by price (ascending)
+    // Create a new array to ensure React detects the state change
+    const sortedBookCards = [...bookCards].sort((a, b) => {
+      // First sort by status (active/unlocked first, inactive/locked last)
+      const aStatus = a.status?.toLowerCase() || '';
+      const bStatus = b.status?.toLowerCase() || '';
+
+      // active = unlocked (should appear first)
+      // inactive = locked (should appear last)
+      const aIsActive = aStatus === 'active' ? 1 : 0;
+      const bIsActive = bStatus === 'active' ? 1 : 0;
+
+      console.log(`Comparing: ${a.lottery_game_name} (status="${aStatus}", active=${aIsActive}) vs ${b.lottery_game_name} (status="${bStatus}", active=${bIsActive})`);
+
+      if (aIsActive !== bIsActive) {
+        return bIsActive - aIsActive; // Active (1) comes before inactive (0)
+      }
+
+      // Then sort by price (ascending)
+      return a.price - b.price;
+    });
+
+    console.log('=== AFTER SORTING ===');
+    console.log('Books sorted: active first (unlocked), inactive last (locked), then by price ascending');
+    console.log('All sorted books:');
+    sortedBookCards.forEach((book, idx) => {
+      const isActive = book.status?.toLowerCase() === 'active';
+      console.log(`  ${idx + 1}. ${book.lottery_game_name} - Status: "${book.status}" (${isActive ? 'ACTIVE/UNLOCKED ✓' : 'INACTIVE/LOCKED ✗'}), Price: $${book.price}`);
+    });
+
+    setInventory(sortedBookCards);
     setRecentTickets([]); // No recent tickets in this data structure
     setStats({
       total_inventory_value: totalValue,

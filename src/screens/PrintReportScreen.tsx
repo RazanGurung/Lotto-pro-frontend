@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
+import { ticketService } from '../services/api';
+import { getUserFriendlyError } from '../utils/errors';
 
 type PrintReportScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'PrintReport'>;
 type PrintReportScreenRouteProp = RouteProp<RootStackParamList, 'PrintReport'>;
@@ -14,136 +17,280 @@ type Props = {
   route: PrintReportScreenRouteProp;
 };
 
+interface BookBreakdown {
+  book_id: number;
+  lottery_id: number;
+  serial_number: string;
+  direction: 'asc' | 'desc';
+  lottery_name: string;
+  lottery_number: string;
+  price: string;
+  opening_ticket: number;
+  closing_ticket: number;
+  tickets_sold: number;
+  total_sales: string;
+  scans_count: number;
+}
+
+interface DailyReportData {
+  store_id: number;
+  date: string;
+  total_tickets_sold: number;
+  total_revenue: number;
+  breakdown: BookBreakdown[];
+}
+
 export default function PrintReportScreen({ route }: Props) {
   const colors = useTheme();
   const styles = createStyles(colors);
-  const { storeName } = route.params;
-  const [selectedDate, setSelectedDate] = useState<'today' | 'yesterday' | 'custom'>('today');
+  const { storeId, storeName } = route.params;
+
+  const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [reportData, setReportData] = useState<DailyReportData | null>(null);
+
+  useEffect(() => {
+    fetchDailyReport();
+  }, [selectedDate]);
+
+  const fetchDailyReport = async () => {
+    try {
+      setLoading(true);
+      const dateString = formatDateForAPI(selectedDate);
+
+      console.log('Fetching daily report for:', dateString);
+      const result = await ticketService.getDailyReport(storeId, dateString);
+
+      if (result.success && result.data) {
+        setReportData(result.data);
+      } else {
+        setReportData(null);
+      }
+    } catch (error) {
+      console.error('Error fetching daily report:', error);
+      setReportData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDateForAPI = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const formatDateDisplay = (date: Date): string => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
+
+  const changeDate = (days: number) => {
+    const newDate = new Date(selectedDate);
+    newDate.setDate(newDate.getDate() + days);
+    setSelectedDate(newDate);
+  };
+
+  const goToToday = () => {
+    setSelectedDate(new Date());
+  };
 
   const handlePrintReport = () => {
-    // In production, generate PDF or print report
-    Alert.alert('Success', 'Report generated successfully!');
+    Alert.alert('Success', 'Report generation feature coming soon!');
   };
 
-  const getTodayDate = () => {
-    return new Date().toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+  const formatCurrency = (amount: number | string): string => {
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+    return `$${num.toFixed(2)}`;
   };
 
-  const getYesterdayDate = () => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    return yesterday.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  // Mock report data
-  const reportData = {
-    totalSales: 450,
-    revenue: 2250,
-    ticketsSold: [
-      { name: 'Lucky 7s', sold: 45, revenue: 45 },
-      { name: 'Triple Match', sold: 32, revenue: 64 },
-      { name: 'Gold Rush', sold: 28, revenue: 140 },
-      { name: 'Diamond Jackpot', sold: 15, revenue: 150 },
-    ],
-  };
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading report...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         <View style={styles.card}>
-          <Text style={styles.title}>Generate Daily Report</Text>
+          <View style={styles.headerRow}>
+            <Text style={styles.title}>Daily Report</Text>
+            <TouchableOpacity onPress={goToToday} style={styles.todayButton}>
+              <Ionicons name="today" size={20} color={colors.primary} />
+              <Text style={styles.todayButtonText}>Today</Text>
+            </TouchableOpacity>
+          </View>
           <Text style={styles.storeName}>{storeName}</Text>
 
-        {/* Date Selection */}
-        <View style={styles.dateSection}>
-          <Text style={styles.sectionTitle}>Select Date</Text>
+          {/* Date Navigation */}
+          <View style={styles.dateSelector}>
+            <TouchableOpacity
+              style={styles.dateButton}
+              onPress={() => changeDate(-1)}
+            >
+              <Ionicons name="chevron-back" size={28} color={colors.primary} />
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.dateOption, selectedDate === 'today' && styles.dateOptionActive]}
-            onPress={() => setSelectedDate('today')}
-          >
-            <View style={styles.dateOptionContent}>
-              <Text style={[styles.dateOptionTitle, selectedDate === 'today' && styles.dateOptionTitleActive]}>
-                Today
-              </Text>
-              <Text style={[styles.dateOptionDate, selectedDate === 'today' && styles.dateOptionDateActive]}>
-                {getTodayDate()}
-              </Text>
+            <View style={styles.dateDisplay}>
+              <Text style={styles.dateText}>{formatDateDisplay(selectedDate)}</Text>
             </View>
-            {selectedDate === 'today' && <Text style={styles.checkmark}>✓</Text>}
-          </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.dateOption, selectedDate === 'yesterday' && styles.dateOptionActive]}
-            onPress={() => setSelectedDate('yesterday')}
-          >
-            <View style={styles.dateOptionContent}>
-              <Text style={[styles.dateOptionTitle, selectedDate === 'yesterday' && styles.dateOptionTitleActive]}>
-                Yesterday
-              </Text>
-              <Text style={[styles.dateOptionDate, selectedDate === 'yesterday' && styles.dateOptionDateActive]}>
-                {getYesterdayDate()}
-              </Text>
-            </View>
-            {selectedDate === 'yesterday' && <Text style={styles.checkmark}>✓</Text>}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.dateOption, selectedDate === 'custom' && styles.dateOptionActive]}
-            onPress={() => setSelectedDate('custom')}
-          >
-            <View style={styles.dateOptionContent}>
-              <Text style={[styles.dateOptionTitle, selectedDate === 'custom' && styles.dateOptionTitleActive]}>
-                Custom Date Range
-              </Text>
-              <Text style={[styles.dateOptionDate, selectedDate === 'custom' && styles.dateOptionDateActive]}>
-                Select specific dates
-              </Text>
-            </View>
-            {selectedDate === 'custom' && <Text style={styles.checkmark}>✓</Text>}
-          </TouchableOpacity>
-        </View>
-
-        {/* Report Preview */}
-        <View style={styles.previewSection}>
-          <Text style={styles.sectionTitle}>Report Preview</Text>
-
-          <View style={styles.summaryCard}>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Total Tickets Sold</Text>
-              <Text style={styles.summaryValue}>{reportData.totalSales}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Total Revenue</Text>
-              <Text style={[styles.summaryValue, styles.revenue]}>${reportData.revenue}</Text>
-            </View>
+            <TouchableOpacity
+              style={styles.dateButton}
+              onPress={() => changeDate(1)}
+              disabled={formatDateForAPI(selectedDate) === formatDateForAPI(new Date())}
+            >
+              <Ionicons
+                name="chevron-forward"
+                size={28}
+                color={
+                  formatDateForAPI(selectedDate) === formatDateForAPI(new Date())
+                    ? colors.textMuted
+                    : colors.primary
+                }
+              />
+            </TouchableOpacity>
           </View>
 
-          <View style={styles.detailsCard}>
-            <Text style={styles.detailsTitle}>Breakdown by Lottery</Text>
-            {reportData.ticketsSold.map((item, index) => (
-              <View key={index} style={styles.detailRow}>
-                <Text style={styles.detailName}>{item.name}</Text>
-                <View style={styles.detailStats}>
-                  <Text style={styles.detailSold}>{item.sold} sold</Text>
-                  <Text style={styles.detailRevenue}>${item.revenue}</Text>
+          {reportData ? (
+            <>
+              {/* Report Summary */}
+              <View style={styles.previewSection}>
+                <Text style={styles.sectionTitle}>Summary</Text>
+
+                <View style={styles.summaryCard}>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Total Tickets Sold</Text>
+                    <Text style={styles.summaryValue}>{reportData.total_tickets_sold}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Total Revenue</Text>
+                    <Text style={[styles.summaryValue, styles.revenue]}>
+                      {formatCurrency(reportData.total_revenue)}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Active Books</Text>
+                    <Text style={styles.summaryValue}>{reportData.breakdown.length}</Text>
+                  </View>
                 </View>
               </View>
-            ))}
-          </View>
+
+              {/* Breakdown by Book */}
+              <View style={styles.previewSection}>
+                <Text style={styles.sectionTitle}>Sales Breakdown by Book</Text>
+
+                {reportData.breakdown.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Ionicons name="document-outline" size={48} color={colors.textMuted} />
+                    <Text style={styles.emptyStateText}>No sales recorded for this date</Text>
+                  </View>
+                ) : (
+                  <View style={styles.detailsCard}>
+                    {reportData.breakdown.map((book, index) => (
+                      <View key={index} style={styles.bookSection}>
+                        <View style={styles.bookHeader}>
+                          <View style={styles.bookHeaderLeft}>
+                            <Text style={styles.bookGameName}>{book.lottery_name}</Text>
+                            <Text style={styles.bookGameNumber}>
+                              Game #{book.lottery_number} • Book #{book.serial_number}
+                            </Text>
+                          </View>
+                          <View style={styles.bookRevenue}>
+                            <Text style={styles.bookRevenueAmount}>
+                              {formatCurrency(book.total_sales)}
+                            </Text>
+                            <Text style={styles.bookRevenueLabel}>Revenue</Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.bookStats}>
+                          <View style={styles.bookStat}>
+                            <Text style={styles.bookStatLabel}>Opening</Text>
+                            <Text style={styles.bookStatValue}>{book.opening_ticket}</Text>
+                          </View>
+                          <View style={styles.bookStatDivider} />
+                          <View style={styles.bookStat}>
+                            <Text style={styles.bookStatLabel}>Closing</Text>
+                            <Text style={styles.bookStatValue}>{book.closing_ticket}</Text>
+                          </View>
+                          <View style={styles.bookStatDivider} />
+                          <View style={styles.bookStat}>
+                            <Text style={styles.bookStatLabel}>Sold</Text>
+                            <Text style={[styles.bookStatValue, { color: colors.success }]}>
+                              {book.tickets_sold}
+                            </Text>
+                          </View>
+                          <View style={styles.bookStatDivider} />
+                          <View style={styles.bookStat}>
+                            <Text style={styles.bookStatLabel}>Scans</Text>
+                            <Text style={styles.bookStatValue}>{book.scans_count}</Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.bookFooter}>
+                          <View style={styles.priceTag}>
+                            <Text style={styles.priceTagText}>
+                              {formatCurrency(book.price)} each
+                            </Text>
+                          </View>
+                          <View
+                            style={[
+                              styles.directionBadge,
+                              {
+                                backgroundColor:
+                                  book.direction === 'asc'
+                                    ? colors.info + '20'
+                                    : colors.warning + '20',
+                              },
+                            ]}
+                          >
+                            <Ionicons
+                              name={book.direction === 'asc' ? 'arrow-up' : 'arrow-down'}
+                              size={14}
+                              color={book.direction === 'asc' ? colors.info : colors.warning}
+                            />
+                            <Text
+                              style={[
+                                styles.directionText,
+                                {
+                                  color:
+                                    book.direction === 'asc' ? colors.info : colors.warning,
+                                },
+                              ]}
+                            >
+                              {book.direction === 'asc' ? 'Ascending' : 'Descending'}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </>
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="document-text-outline" size={64} color={colors.textMuted} />
+              <Text style={styles.emptyStateTitle}>No Report Available</Text>
+              <Text style={styles.emptyStateText}>
+                No sales data found for {formatDateDisplay(selectedDate)}
+              </Text>
+            </View>
+          )}
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
 
       {/* Fixed Action Buttons */}
       <View style={styles.buttonContainer}>
@@ -167,6 +314,17 @@ const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
   scrollContent: {
     paddingBottom: 160,
   },
@@ -181,64 +339,65 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  todayButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: colors.primary + '15',
+  },
+  todayButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     color: colors.textPrimary,
-    marginBottom: 5,
   },
   storeName: {
     fontSize: 16,
     color: colors.textSecondary,
-    marginBottom: 30,
+    marginBottom: 20,
   },
-  dateSection: {
-    marginBottom: 30,
+  dateSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.backgroundDark,
+    marginBottom: 20,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dateButton: {
+    padding: 8,
+  },
+  dateDisplay: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  dateText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    textAlign: 'center',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: colors.textPrimary,
     marginBottom: 15,
-  },
-  dateOption: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 15,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: colors.border,
-    marginBottom: 10,
-    backgroundColor: colors.surface,
-  },
-  dateOptionActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primaryLight + '20',
-  },
-  dateOptionContent: {
-    flex: 1,
-  },
-  dateOptionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  dateOptionTitleActive: {
-    color: colors.primary,
-  },
-  dateOptionDate: {
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  dateOptionDateActive: {
-    color: colors.primary,
-  },
-  checkmark: {
-    fontSize: 20,
-    color: colors.primary,
-    fontWeight: 'bold',
   },
   previewSection: {
     marginBottom: 20,
@@ -274,40 +433,111 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 8,
     padding: 15,
   },
-  detailsTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: 12,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
+  bookSection: {
+    marginBottom: 16,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  detailName: {
-    fontSize: 14,
-    color: colors.textPrimary,
+  bookHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  bookHeaderLeft: {
     flex: 1,
   },
-  detailStats: {
+  bookGameName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  bookGameNumber: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  bookRevenue: {
+    alignItems: 'flex-end',
+  },
+  bookRevenueAmount: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.success,
+  },
+  bookRevenueLabel: {
+    fontSize: 10,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  bookStats: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 10,
+    marginBottom: 10,
   },
-  detailSold: {
-    fontSize: 13,
+  bookStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  bookStatLabel: {
+    fontSize: 10,
     color: colors.textSecondary,
-    marginRight: 15,
+    marginBottom: 4,
   },
-  detailRevenue: {
-    fontSize: 14,
+  bookStatValue: {
+    fontSize: 15,
     fontWeight: 'bold',
-    color: colors.secondary,
-    minWidth: 60,
-    textAlign: 'right',
+    color: colors.textPrimary,
+  },
+  bookStatDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: colors.border,
+  },
+  bookFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  priceTag: {
+    backgroundColor: colors.primary + '15',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  priceTagText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  directionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+    gap: 4,
+  },
+  directionText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
   buttonContainer: {
     position: 'absolute',
