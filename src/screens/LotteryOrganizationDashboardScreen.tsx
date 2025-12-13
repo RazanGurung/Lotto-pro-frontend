@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList, Image, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList, Image, ActivityIndicator, RefreshControl, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -42,6 +42,9 @@ export default function LotteryOrganizationDashboardScreen({ navigation, route }
   const styles = createStyles(colors);
   const { organizationId, organizationName, state } = route.params;
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [priceFilter, setPriceFilter] = useState<'all' | '1' | '2' | '3' | '5' | '10' | '20' | '30' | '50'>('all');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [searchQuery, setSearchQuery] = useState('');
   const [lotteries, setLotteries] = useState<Lottery[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -78,11 +81,35 @@ export default function LotteryOrganizationDashboardScreen({ navigation, route }
     setRefreshing(false);
   };
 
-  const filteredGames = lotteries.filter(game => {
-    if (filter === 'active') return game.status === 'active';
-    if (filter === 'inactive') return game.status !== 'active';
-    return true;
-  });
+  const filteredGames = lotteries
+    .filter(game => {
+      // Status filter
+      if (filter === 'active' && game.status !== 'active') return false;
+      if (filter === 'inactive' && game.status === 'active') return false;
+
+      // Search filter
+      if (searchQuery.trim() !== '') {
+        const query = searchQuery.toLowerCase();
+        const matchesName = game.lottery_name.toLowerCase().includes(query);
+        const matchesNumber = game.lottery_number.toLowerCase().includes(query);
+        if (!matchesName && !matchesNumber) return false;
+      }
+
+      // Price filter
+      if (priceFilter !== 'all') {
+        const gamePrice = parseFloat(game.price);
+        const filterPrice = parseFloat(priceFilter);
+        if (gamePrice !== filterPrice) return false;
+      }
+
+      return true;
+    })
+    .sort((a, b) => {
+      // Sort by price
+      const priceA = parseFloat(a.price);
+      const priceB = parseFloat(b.price);
+      return sortOrder === 'asc' ? priceA - priceB : priceB - priceA;
+    });
 
   const getPriceColor = (price: number) => {
     if (price >= 20) return colors.error;
@@ -173,6 +200,63 @@ export default function LotteryOrganizationDashboardScreen({ navigation, route }
         </View>
         <View style={styles.headerSpacer} />
       </View>
+
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={20} color={colors.textMuted} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by name or number..."
+            placeholderTextColor={colors.textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+        <TouchableOpacity
+          style={styles.sortButton}
+          onPress={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+        >
+          <Ionicons
+            name={sortOrder === 'asc' ? 'arrow-up' : 'arrow-down'}
+            size={20}
+            color={colors.primary}
+          />
+        </TouchableOpacity>
+      </View>
+
+      {/* Price Filter */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.priceFilterContainer}
+        contentContainerStyle={styles.priceFilterContent}
+      >
+        <TouchableOpacity
+          style={[styles.priceFilterChip, priceFilter === 'all' && styles.activePriceFilterChip]}
+          onPress={() => setPriceFilter('all')}
+        >
+          <Text style={[styles.priceFilterText, priceFilter === 'all' && styles.activePriceFilterText]}>
+            All Prices
+          </Text>
+        </TouchableOpacity>
+        {['1', '2', '3', '5', '10', '20', '30', '50'].map((price) => (
+          <TouchableOpacity
+            key={price}
+            style={[styles.priceFilterChip, priceFilter === price && styles.activePriceFilterChip]}
+            onPress={() => setPriceFilter(price as any)}
+          >
+            <Text style={[styles.priceFilterText, priceFilter === price && styles.activePriceFilterText]}>
+              ${price}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       {/* Filter Tabs */}
       <View style={styles.filterContainer}>
@@ -293,10 +377,72 @@ const createStyles = (colors: any) => StyleSheet.create({
   headerSpacer: {
     width: 40,
   },
-  filterContainer: {
+  searchContainer: {
     flexDirection: 'row',
     paddingHorizontal: 15,
     paddingTop: 15,
+    paddingBottom: 10,
+    gap: 10,
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.textPrimary,
+  },
+  sortButton: {
+    width: 44,
+    height: 44,
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  priceFilterContainer: {
+    maxHeight: 50,
+  },
+  priceFilterContent: {
+    paddingHorizontal: 15,
+    paddingBottom: 10,
+    gap: 8,
+  },
+  priceFilterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  activePriceFilterChip: {
+    backgroundColor: colors.secondary,
+    borderColor: colors.secondary,
+  },
+  priceFilterText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  activePriceFilterText: {
+    color: colors.white,
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 15,
+    paddingTop: 5,
     paddingBottom: 15,
     gap: 10,
   },
