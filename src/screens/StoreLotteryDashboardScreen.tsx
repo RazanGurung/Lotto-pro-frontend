@@ -82,9 +82,11 @@ interface RecentTicket {
 
 interface DashboardStats {
   total_inventory_value: number;
+  total_sold_value: number;
   total_games: number;
   total_packs: number;
   total_tickets: number;
+  total_sold_tickets: number;
   last_updated: string;
 }
 
@@ -103,13 +105,17 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [inventory, setInventory] = useState<BookInventoryCard[]>([]);
+  const [rawInventoryData, setRawInventoryData] = useState<InventoryBook[]>([]);
   const [recentTickets, setRecentTickets] = useState<RecentTicket[]>([]);
   const [lotteryTypes, setLotteryTypes] = useState<any[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<string>('all'); // 'all', '2024-12', etc.
   const [stats, setStats] = useState<DashboardStats>({
     total_inventory_value: 0,
+    total_sold_value: 0,
     total_games: 0,
     total_packs: 0,
     total_tickets: 0,
+    total_sold_tickets: 0,
     last_updated: new Date().toISOString(),
   });
 
@@ -119,6 +125,14 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
       fetchDashboardData();
     }, [storeId])
   );
+
+  // Reprocess data when month filter changes
+  useEffect(() => {
+    if (rawInventoryData.length > 0 && lotteryTypes.length > 0) {
+      console.log('📅 Month filter changed to:', selectedMonth);
+      processTicketData(rawInventoryData, lotteryTypes, selectedMonth);
+    }
+  }, [selectedMonth]);
 
   /**
    * Get cached lottery types if available and not expired
@@ -256,20 +270,24 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
           console.log('\n📋 INVENTORY ITEMS:');
           inventoryData.forEach((item, index) => {
             console.log(`\nItem ${index + 1}:`, {
+              lottery_id: item.lottery_id,
               lottery_game_name: item.lottery_game_name || item.lottery_name,
               lottery_game_number: item.lottery_game_number || item.lottery_number,
-              pack_number: item.pack_number,
-              ticket_number: item.ticket_number,
-              price: item.price,
-              scanned_at: item.scanned_at
+              serial_number: item.serial_number,
+              status: item.status,
+              ALL_FIELDS: Object.keys(item)
             });
           });
           console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-          processTicketData(inventoryData, lotteryTypesData || []);
+
+          // Store raw data for month filtering
+          setRawInventoryData(inventoryData);
+          processTicketData(inventoryData, lotteryTypesData || [], selectedMonth);
         } else {
           console.log('\n⚠️ NO INVENTORY ITEMS FOUND');
           console.log('Showing empty state');
           console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          setRawInventoryData([]);
           setInventory([]);
           setRecentTickets([]);
         }
@@ -290,107 +308,143 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
     }
   };
 
-  const processTicketData = (inventoryBooks: InventoryBook[], lotteryTypesData: any[]) => {
+  const processTicketData = (inventoryBooks: InventoryBook[], lotteryTypesData: any[], filterMonth: string = 'all') => {
     console.log('=== PROCESSING INVENTORY DATA ===');
     console.log('Total books received:', inventoryBooks.length);
+    console.log('Selected month filter:', filterMonth);
     console.log('Lottery types available:', lotteryTypesData.length);
     console.log('First book sample:', JSON.stringify(inventoryBooks[0], null, 2));
+    if (lotteryTypesData.length > 0) {
+      console.log('First lottery type sample:', {
+        lottery_id: lotteryTypesData[0].lottery_id,
+        lottery_name: lotteryTypesData[0].lottery_name,
+        lottery_number: lotteryTypesData[0].lottery_number,
+        ALL_FIELDS: Object.keys(lotteryTypesData[0])
+      });
+    }
 
-    // Create a map of lottery types by lottery_id for quick lookup
-    const lotteryTypeMap = new Map<number, any>();
-    lotteryTypesData.forEach(lottery => {
-      lotteryTypeMap.set(lottery.lottery_id, lottery);
+    // Filter inventory by month if not 'all'
+    let filteredBooks = inventoryBooks;
+    if (filterMonth !== 'all') {
+      filteredBooks = inventoryBooks.filter(book => {
+        if (!book.created_at) return false;
+        const bookDate = new Date(book.created_at);
+        const bookMonth = `${bookDate.getFullYear()}-${String(bookDate.getMonth() + 1).padStart(2, '0')}`;
+        return bookMonth === filterMonth;
+      });
+      console.log(`Filtered from ${inventoryBooks.length} to ${filteredBooks.length} books for month ${filterMonth}`);
+    }
+
+    // Create a map of inventory books by lottery_id for quick lookup
+    const inventoryBookMap = new Map<number, InventoryBook[]>();
+    filteredBooks.forEach(book => {
+      console.log(`Mapping inventory book: lottery_id=${book.lottery_id}`);
+      if (!inventoryBookMap.has(book.lottery_id)) {
+        inventoryBookMap.set(book.lottery_id, []);
+      }
+      inventoryBookMap.get(book.lottery_id)!.push(book);
     });
 
-    // Create individual cards for each book
+    console.log('Inventory map keys (lottery_ids with inventory):', Array.from(inventoryBookMap.keys()));
+
+    // Create cards for ALL lottery types, sorted by inventory status
     const bookCards: BookInventoryCard[] = [];
     const uniqueGameIds = new Set<number>();
 
-    inventoryBooks.forEach((book, index) => {
-      console.log(`Processing book ${index}:`, book);
-      const lotteryType = lotteryTypeMap.get(book.lottery_id);
-
-      if (!lotteryType) {
-        console.warn(`⚠️ No lottery type found for lottery_id ${book.lottery_id}`);
-        return;
-      }
-
-      console.log(`Lottery type for book ${index}:`, {
+    lotteryTypesData.forEach((lotteryType, index) => {
+      console.log(`\nProcessing lottery type ${index}:`, {
         lottery_id: lotteryType.lottery_id,
         lottery_name: lotteryType.lottery_name,
-        image_url: lotteryType.image_url,
-        has_image: !!lotteryType.image_url
+        lottery_number: lotteryType.lottery_number,
       });
-
-      uniqueGameIds.add(book.lottery_id);
 
       const price = parseFloat(lotteryType.price) || 0;
+      const inventoryBooksForLottery = inventoryBookMap.get(lotteryType.lottery_id) || [];
 
-      // Calculate sold and remaining based on direction
-      // current_count is the current ticket number (e.g., 7)
-      // total_count is the total number of tickets (e.g., 30 for tickets 0-29)
-      let soldCount = 0;
-      let remainingCount = 0;
+      console.log(`  Looking up lottery_id ${lotteryType.lottery_id} in inventory map...`);
+      console.log(`  Found ${inventoryBooksForLottery.length} books in inventory`);
 
-      if (book.direction === 'asc') {
-        // Ascending: tickets sold from 0 upwards (0, 1, 2, ..., current_count)
-        // If current_count = 7, then tickets 0-7 are sold (8 tickets)
-        soldCount = book.current_count + 1;
-        remainingCount = book.total_count - soldCount;
+      // Check if this lottery has any inventory (has been scanned)
+      // If inventory exists = UNLOCKED, if no inventory = LOCKED
+      const hasInventory = inventoryBooksForLottery.length > 0;
+      const status = hasInventory ? 'active' : 'inactive';
+
+      console.log(`  ➜ ${lotteryType.lottery_name}: status=${status} (${hasInventory ? '🔓 UNLOCKED' : '🔒 LOCKED'})`);
+
+      // Only process lottery types that have inventory (skip locked ones)
+      if (inventoryBooksForLottery.length > 0) {
+        console.log(`  ✓ Has inventory - creating cards`);
+
+        inventoryBooksForLottery.forEach((book, bookIndex) => {
+          uniqueGameIds.add(lotteryType.lottery_id);
+
+          // Calculate sold and remaining based on direction
+          let soldCount = 0;
+          let remainingCount = 0;
+
+          if (book.direction === 'asc') {
+            soldCount = book.current_count + 1;
+            remainingCount = book.total_count - soldCount;
+          } else {
+            soldCount = book.total_count - book.current_count - 1;
+            remainingCount = book.current_count + 1;
+          }
+
+          const bookValue = remainingCount * price;
+
+          console.log(`  Book ${bookIndex} for ${lotteryType.lottery_name}:`, {
+            direction: book.direction,
+            total_count: book.total_count,
+            current_count: book.current_count,
+            sold: soldCount,
+            remaining: remainingCount,
+            bookValue,
+            book_status: book.status,
+            lottery_level_status: status
+          });
+
+          bookCards.push({
+            // Book details
+            book_id: book.id,
+            serial_number: book.serial_number,
+            total_count: book.total_count,
+            current_count: remainingCount,
+            direction: book.direction,
+            sold_count: soldCount,
+            book_value: bookValue,
+
+            // Lottery details
+            lottery_id: lotteryType.lottery_id,
+            lottery_game_number: lotteryType.lottery_number,
+            lottery_game_name: lotteryType.lottery_name,
+            price: price,
+            status: status, // Use lottery-level status (active if ANY book is active)
+            image_url: lotteryType.image_url,
+          });
+        });
       } else {
-        // Descending: tickets sold from max downwards
-        // If total = 30 (0-29) and current_count = 7, then tickets 29-8 are sold (22 tickets)
-        soldCount = book.total_count - book.current_count - 1;
-        remainingCount = book.current_count + 1;
+        // Skip lottery types without inventory - don't show locked cards
+        console.log(`  ✗ No inventory - skipping (not showing locked card)`);
       }
-
-      const bookValue = remainingCount * price;
-
-      console.log(`Book ${index} calculation:`, {
-        lottery_name: lotteryType.lottery_name,
-        direction: book.direction,
-        total_count: book.total_count,
-        current_count: book.current_count,
-        sold: soldCount,
-        remaining: remainingCount,
-        bookValue,
-        book_status: book.status,
-        lottery_status: lotteryType.status
-      });
-
-      bookCards.push({
-        // Book details
-        book_id: book.id,
-        serial_number: book.serial_number,
-        total_count: book.total_count,
-        current_count: remainingCount, // Store remaining count for display
-        direction: book.direction,
-        sold_count: soldCount,
-        book_value: bookValue,
-
-        // Lottery details
-        lottery_id: book.lottery_id,
-        lottery_game_number: lotteryType.lottery_number,
-        lottery_game_name: lotteryType.lottery_name,
-        price: price,
-        status: book.status, // Use book status from inventory, not lottery type status
-        image_url: lotteryType.image_url,
-      });
     });
 
-    // Calculate stats
-    const totalValue = bookCards.reduce((sum, card) => sum + card.book_value, 0);
+    // Calculate stats from all cards (only showing inventory now)
+    const totalRemainingValue = bookCards.reduce((sum, card) => sum + card.book_value, 0);
+    const totalSoldValue = bookCards.reduce((sum, card) => sum + (card.sold_count * card.price), 0);
     const totalBooks = bookCards.length;
     const totalTickets = bookCards.reduce((sum, card) => sum + card.current_count, 0);
+    const totalSoldTickets = bookCards.reduce((sum, card) => sum + card.sold_count, 0);
     const totalGames = uniqueGameIds.size;
 
     console.log('=== PROCESSED RESULTS ===');
-    console.log('Total book cards:', bookCards.length);
-    console.log('Unique games:', totalGames);
+    console.log('Total inventory cards created:', bookCards.length);
+    console.log('Unique games with inventory:', totalGames);
     console.log('Stats:', {
-      totalValue,
+      totalRemainingValue,
+      totalSoldValue,
       totalBooks,
       totalTickets,
+      totalSoldTickets,
       totalGames
     });
 
@@ -399,19 +453,15 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
     console.log('Books before sort:', bookCards.map(b => ({
       name: b.lottery_game_name,
       status: b.status,
-      status_lower: b.status?.toLowerCase(),
       price: b.price
     })));
 
     // Sort books: active first (unlocked), inactive last (locked), then by price (ascending)
-    // Create a new array to ensure React detects the state change
     const sortedBookCards = [...bookCards].sort((a, b) => {
       // First sort by status (active/unlocked first, inactive/locked last)
       const aStatus = a.status?.toLowerCase() || '';
       const bStatus = b.status?.toLowerCase() || '';
 
-      // active = unlocked (should appear first)
-      // inactive = locked (should appear last)
       const aIsActive = aStatus === 'active' ? 1 : 0;
       const bIsActive = bStatus === 'active' ? 1 : 0;
 
@@ -426,20 +476,23 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
     });
 
     console.log('=== AFTER SORTING ===');
-    console.log('Books sorted: active first (unlocked), inactive last (locked), then by price ascending');
+    console.log('Books sorted: active first, then by price ascending');
     console.log('All sorted books:');
     sortedBookCards.forEach((book, idx) => {
       const isActive = book.status?.toLowerCase() === 'active';
-      console.log(`  ${idx + 1}. ${book.lottery_game_name} - Status: "${book.status}" (${isActive ? 'ACTIVE/UNLOCKED ✓' : 'INACTIVE/LOCKED ✗'}), Price: $${book.price}`);
+      console.log(`  ${idx + 1}. ${book.lottery_game_name} - Status: "${book.status}" (${isActive ? 'ACTIVE ✓' : 'INACTIVE ✗'}), Price: $${book.price}`);
     });
 
-    setInventory(sortedBookCards);
+    console.log('\n🔄 Setting inventory state with sorted cards...');
+    setInventory([...sortedBookCards]); // Force new array reference for React re-render
     setRecentTickets([]); // No recent tickets in this data structure
     setStats({
-      total_inventory_value: totalValue,
+      total_inventory_value: totalRemainingValue,
+      total_sold_value: totalSoldValue,
       total_games: totalGames,
       total_packs: totalBooks,
       total_tickets: totalTickets,
+      total_sold_tickets: totalSoldTickets,
       last_updated: new Date().toISOString(),
     });
   };
@@ -476,6 +529,21 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
     return date.toLocaleDateString();
   };
 
+  const getAvailableMonths = () => {
+    const months = [];
+    const currentDate = new Date();
+
+    // Generate last 6 months
+    for (let i = 0; i < 6; i++) {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+      const monthValue = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthLabel = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      months.push({ value: monthValue, label: monthLabel });
+    }
+
+    return months;
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -510,30 +578,65 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
           />
         }
       >
+        {/* Month Selector */}
+        <View style={styles.monthSelector}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.monthScrollContent}>
+            <TouchableOpacity
+              style={[styles.monthButton, selectedMonth === 'all' && styles.monthButtonActive]}
+              onPress={() => setSelectedMonth('all')}
+            >
+              <Text style={[styles.monthButtonText, selectedMonth === 'all' && styles.monthButtonTextActive]}>All Time</Text>
+            </TouchableOpacity>
+            {getAvailableMonths().map((month) => (
+              <TouchableOpacity
+                key={month.value}
+                style={[styles.monthButton, selectedMonth === month.value && styles.monthButtonActive]}
+                onPress={() => setSelectedMonth(month.value)}
+              >
+                <Text style={[styles.monthButtonText, selectedMonth === month.value && styles.monthButtonTextActive]}>
+                  {month.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
         {/* Stats Cards */}
         <View style={styles.statsGrid}>
-          <View style={[styles.statCard, styles.statCardPrimary]}>
-            <Ionicons name="cash-outline" size={32} color={colors.primary} />
+          <View style={[styles.statCard, styles.statCardSuccess]}>
+            <Ionicons name="cash-outline" size={32} color={colors.success} />
             <Text style={styles.statValue}>{formatCurrency(stats.total_inventory_value)}</Text>
-            <Text style={styles.statLabel}>Total Inventory Value</Text>
+            <Text style={styles.statLabel}>Remaining Value</Text>
+          </View>
+
+          <View style={[styles.statCard, styles.statCardOrange]}>
+            <Ionicons name="trending-up-outline" size={32} color={colors.accentOrange} />
+            <Text style={styles.statValue}>{formatCurrency(stats.total_sold_value)}</Text>
+            <Text style={styles.statLabel}>Sold Value</Text>
           </View>
 
           <View style={styles.statCard}>
-            <Ionicons name="game-controller-outline" size={28} color={colors.secondary} />
-            <Text style={styles.statValue}>{stats.total_games}</Text>
-            <Text style={styles.statLabel}>Active Books</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Ionicons name="albums-outline" size={28} color={colors.accentOrange} />
+            <Ionicons name="albums-outline" size={28} color={colors.secondary} />
             <Text style={styles.statValue}>{stats.total_packs}</Text>
             <Text style={styles.statLabel}>Total Books</Text>
           </View>
 
           <View style={styles.statCard}>
-            <Ionicons name="ticket-outline" size={28} color={colors.accentPurple} />
+            <Ionicons name="game-controller-outline" size={28} color={colors.primary} />
+            <Text style={styles.statValue}>{stats.total_games}</Text>
+            <Text style={styles.statLabel}>Unique Games</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Ionicons name="ticket-outline" size={28} color={colors.success} />
             <Text style={styles.statValue}>{stats.total_tickets}</Text>
             <Text style={styles.statLabel}>Remaining Tickets</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Ionicons name="checkmark-circle-outline" size={28} color={colors.accentOrange} />
+            <Text style={styles.statValue}>{stats.total_sold_tickets}</Text>
+            <Text style={styles.statLabel}>Sold Tickets</Text>
           </View>
         </View>
 
@@ -560,11 +663,12 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
             </View>
           ) : (
             inventory.map((book, index) => {
-              const isActive = book.status?.toLowerCase() === 'active';
-              const soldPercentage = (book.sold_count / book.total_count) * 100;
+              const soldPercentage = book.total_count > 0 ? (book.sold_count / book.total_count) * 100 : 0;
+              const soldValue = book.sold_count * book.price;
+              const remainingValue = book.book_value;
 
               return (
-                <View key={book.book_id} style={styles.inventoryCard}>
+                <View key={`${book.lottery_id}-${book.book_id}`} style={styles.inventoryCard}>
                   <View style={styles.inventoryHeader}>
                     {book.image_url ? (
                       <View style={styles.inventoryImageContainer}>
@@ -587,7 +691,14 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
                       </Text>
                     </View>
                     <View style={styles.inventoryValue}>
-                      <Text style={styles.inventoryPrice}>{formatCurrency(book.book_value)}</Text>
+                      <View style={styles.valueRow}>
+                        <Text style={styles.valueLabel}>Remaining:</Text>
+                        <Text style={styles.inventoryPriceGreen}>{formatCurrency(remainingValue)}</Text>
+                      </View>
+                      <View style={styles.valueRow}>
+                        <Text style={styles.valueLabel}>Sold:</Text>
+                        <Text style={styles.inventoryPriceOrange}>{formatCurrency(soldValue)}</Text>
+                      </View>
                     </View>
                   </View>
 
@@ -628,16 +739,6 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
                       </Text>
                     </View>
                   </View>
-
-                  {/* Inactive Overlay */}
-                  {!isActive && (
-                    <View style={styles.inactiveOverlay}>
-                      <View style={styles.inactiveBadge}>
-                        <Ionicons name="lock-closed" size={20} color={colors.white} />
-                        <Text style={styles.inactiveText}>INACTIVE</Text>
-                      </View>
-                    </View>
-                  )}
                 </View>
               );
             })
@@ -740,6 +841,14 @@ const createStyles = (colors: any) =>
       backgroundColor: colors.primary + '15',
       borderColor: colors.primary + '30',
     },
+    statCardSuccess: {
+      backgroundColor: colors.success + '15',
+      borderColor: colors.success + '30',
+    },
+    statCardOrange: {
+      backgroundColor: colors.accentOrange + '15',
+      borderColor: colors.accentOrange + '30',
+    },
     statValue: {
       fontSize: 24,
       fontWeight: 'bold',
@@ -840,11 +949,32 @@ const createStyles = (colors: any) =>
     },
     inventoryValue: {
       alignItems: 'flex-end',
+      gap: 4,
+    },
+    valueRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    valueLabel: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontWeight: '500',
     },
     inventoryPrice: {
       fontSize: 20,
       fontWeight: 'bold',
       color: colors.success,
+    },
+    inventoryPriceGreen: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: colors.success,
+    },
+    inventoryPriceOrange: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: colors.accentOrange,
     },
     inventoryStats: {
       flexDirection: 'row',
@@ -991,19 +1121,57 @@ const createStyles = (colors: any) =>
     },
     inactiveBadge: {
       backgroundColor: 'rgba(0, 0, 0, 0.9)',
-      paddingHorizontal: 16,
-      paddingVertical: 10,
+      paddingHorizontal: 20,
+      paddingVertical: 12,
       borderRadius: 10,
-      flexDirection: 'row',
+      flexDirection: 'column',
       alignItems: 'center',
-      gap: 8,
+      gap: 6,
       borderWidth: 2,
       borderColor: 'rgba(255, 255, 255, 0.3)',
     },
     inactiveText: {
       color: colors.white,
-      fontSize: 14,
+      fontSize: 16,
       fontWeight: 'bold',
-      letterSpacing: 1,
+      letterSpacing: 1.5,
+    },
+    unlockHintText: {
+      color: colors.white,
+      fontSize: 12,
+      opacity: 0.8,
+      marginTop: 4,
+    },
+    monthSelector: {
+      paddingVertical: 12,
+      paddingHorizontal: 8,
+      backgroundColor: colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    monthScrollContent: {
+      paddingHorizontal: 12,
+      gap: 8,
+    },
+    monthButton: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    monthButtonActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    monthButtonText: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: colors.textSecondary,
+    },
+    monthButtonTextActive: {
+      color: colors.white,
+      fontWeight: '600',
     },
   });
