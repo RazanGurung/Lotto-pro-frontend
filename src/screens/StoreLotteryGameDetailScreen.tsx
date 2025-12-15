@@ -47,9 +47,9 @@ export default function StoreLotteryGameDetailScreen({ navigation, route }: Prop
             (book: any) => book.lottery_id === game.lottery_id && book.status === 'active'
           );
 
-          // Sum up current_count from all books for this lottery
+          // Sum up remaining_tickets from all books for this lottery (backend calculates based on direction)
           const totalCount = booksForThisGame.reduce(
-            (sum: number, book: any) => sum + (book.current_count || 0),
+            (sum: number, book: any) => sum + (book.remaining_tickets || 0),
             0
           );
 
@@ -199,7 +199,7 @@ export default function StoreLotteryGameDetailScreen({ navigation, route }: Prop
                         <View style={styles.bookStats}>
                           <View style={styles.bookStat}>
                             <Text style={styles.bookStatLabel}>Remaining</Text>
-                            <Text style={styles.bookStatValue}>{book.current_count}</Text>
+                            <Text style={styles.bookStatValue}>{book.remaining_tickets}</Text>
                           </View>
                           <View style={styles.bookStatDivider} />
                           <View style={styles.bookStat}>
@@ -209,7 +209,7 @@ export default function StoreLotteryGameDetailScreen({ navigation, route }: Prop
                           <View style={styles.bookStatDivider} />
                           <View style={styles.bookStat}>
                             <Text style={styles.bookStatLabel}>Sold</Text>
-                            <Text style={styles.bookStatValue}>{book.total_count - book.current_count}</Text>
+                            <Text style={styles.bookStatValue}>{book.total_count - book.remaining_tickets}</Text>
                           </View>
                         </View>
                         <View style={styles.bookProgressBar}>
@@ -217,14 +217,14 @@ export default function StoreLotteryGameDetailScreen({ navigation, route }: Prop
                             style={[
                               styles.bookProgressFill,
                               {
-                                width: `${((book.total_count - book.current_count) / book.total_count * 100).toFixed(0)}%`,
-                                backgroundColor: colors.success
+                                width: `${((book.total_count - book.remaining_tickets) / book.total_count * 100).toFixed(0)}%`,
+                                backgroundColor: colors.accentOrange
                               }
                             ]}
                           />
                         </View>
                         <Text style={styles.bookProgressText}>
-                          {((book.total_count - book.current_count) / book.total_count * 100).toFixed(1)}% sold
+                          {((book.total_count - book.remaining_tickets) / book.total_count * 100).toFixed(1)}% sold
                         </Text>
                       </View>
                     ))}

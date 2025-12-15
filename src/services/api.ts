@@ -662,4 +662,37 @@ export const ticketService = {
       };
     }
   },
+
+  /**
+   * Get date range report for a store
+   */
+  getDateRangeReport: async (storeId: number, startDate: string, endDate: string): Promise<ApiResponse<any>> => {
+    try {
+      console.log('=== DATE RANGE REPORT API CALL ===');
+      console.log('Endpoint: /reports/store/' + storeId + '/range');
+      console.log('Store ID:', storeId);
+      console.log('Start Date:', startDate);
+      console.log('End Date:', endDate);
+      console.log('Full URL:', `${config.API_BASE_URL}/reports/store/${storeId}/range?start_date=${startDate}&end_date=${endDate}`);
+
+      const result = await retryFetch(() =>
+        apiRequest(`/reports/store/${storeId}/range?start_date=${startDate}&end_date=${endDate}`)
+      );
+
+      console.log('=== DATE RANGE REPORT API RESPONSE ===');
+      console.log('Result object:', result);
+      console.log('Result.success:', result.success);
+      console.log('Result.data:', JSON.stringify(result.data, null, 2));
+      console.log('Result.error:', result.error);
+      console.log('====================================');
+
+      return result;
+    } catch (error: any) {
+      console.error('Date Range Report API Error:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch date range report',
+      };
+    }
+  },
 };

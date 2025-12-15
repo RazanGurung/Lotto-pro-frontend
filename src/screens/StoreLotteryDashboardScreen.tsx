@@ -44,8 +44,9 @@ interface InventoryBook {
   store_id: number;
   lottery_id: number;
   serial_number: string;
-  total_count: number; // Total number of tickets in book (e.g., 30 for tickets 0-29)
-  current_count: number; // Current ticket number scanned (e.g., 7 means ticket #7)
+  total_count: number; // Total number of tickets in book (e.g., 60)
+  current_count: number; // Current ticket number scanned (e.g., 9)
+  remaining_tickets: number; // Remaining tickets (calculated by backend, e.g., 51)
   direction: 'asc' | 'desc';
   status: string; // Book status: 'active' (unlocked/scanned) or 'inactive' (locked/not scanned yet)
   created_at: string;
@@ -364,43 +365,41 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
       console.log(`  Looking up lottery_id ${lotteryType.lottery_id} in inventory map...`);
       console.log(`  Found ${inventoryBooksForLottery.length} books in inventory`);
 
-      // Check if this lottery has any inventory (has been scanned)
-      // If inventory exists = UNLOCKED, if no inventory = LOCKED
-      const hasInventory = inventoryBooksForLottery.length > 0;
-      const status = hasInventory ? 'active' : 'inactive';
+      // Check if this lottery is ACTIVE for the store:
+      // - lottery_id exists in inventory table (scanned)
+      // - AND at least one inventory book has status='active'
+      const activeBooks = inventoryBooksForLottery.filter(book =>
+        book.status?.toLowerCase() === 'active'
+      );
+      const isActiveForStore = activeBooks.length > 0;
+      const storeLevelStatus = isActiveForStore ? 'active' : 'inactive';
 
-      console.log(`  ➜ ${lotteryType.lottery_name}: status=${status} (${hasInventory ? '🔓 UNLOCKED' : '🔒 LOCKED'})`);
-
-      // Only process lottery types that have inventory (skip locked ones)
+      console.log(`  ➜ ${lotteryType.lottery_name}: store status=${storeLevelStatus} (${isActiveForStore ? '🔓 ACTIVE' : '🔒 INACTIVE'})`);
+      console.log(`    - Total books in inventory: ${inventoryBooksForLottery.length}`);
+      console.log(`    - Active books: ${activeBooks.length}`);
       if (inventoryBooksForLottery.length > 0) {
-        console.log(`  ✓ Has inventory - creating cards`);
+        console.log(`    - Book statuses:`, inventoryBooksForLottery.map(b => b.status));
+      }
 
-        inventoryBooksForLottery.forEach((book, bookIndex) => {
-          uniqueGameIds.add(lotteryType.lottery_id);
+      if (isActiveForStore) {
+        // HAS ACTIVE INVENTORY: Create cards for active scanned books only
+        console.log(`  ✓ Active for store - creating cards for active books`);
+        uniqueGameIds.add(lotteryType.lottery_id);
 
-          // Calculate sold and remaining based on direction
-          let soldCount = 0;
-          let remainingCount = 0;
-
-          if (book.direction === 'asc') {
-            soldCount = book.current_count + 1;
-            remainingCount = book.total_count - soldCount;
-          } else {
-            soldCount = book.total_count - book.current_count - 1;
-            remainingCount = book.current_count + 1;
-          }
-
+        activeBooks.forEach((book, bookIndex) => {
+          // Use backend-calculated remaining_tickets directly (backend handles all direction logic)
+          const remainingCount = book.remaining_tickets;
+          const soldCount = book.total_count - book.remaining_tickets;
           const bookValue = remainingCount * price;
 
           console.log(`  Book ${bookIndex} for ${lotteryType.lottery_name}:`, {
             direction: book.direction,
             total_count: book.total_count,
             current_count: book.current_count,
-            sold: soldCount,
-            remaining: remainingCount,
+            remaining_tickets: book.remaining_tickets,
+            calculated_sold: soldCount,
             bookValue,
-            book_status: book.status,
-            lottery_level_status: status
+            book_status: book.status
           });
 
           bookCards.push({
@@ -418,13 +417,13 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
             lottery_game_number: lotteryType.lottery_number,
             lottery_game_name: lotteryType.lottery_name,
             price: price,
-            status: status, // Use lottery-level status (active if ANY book is active)
+            status: 'active', // This lottery has active inventory = ACTIVE for store
             image_url: lotteryType.image_url,
           });
         });
       } else {
-        // Skip lottery types without inventory - don't show locked cards
-        console.log(`  ✗ No inventory - skipping (not showing locked card)`);
+        // NOT ACTIVE FOR STORE: Skip this lottery (don't show locked cards in inventory)
+        console.log(`  ✗ Not active for store - skipping (not showing in inventory)`);
       }
     });
 
@@ -459,19 +458,18 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
     // Sort books: active first (unlocked), inactive last (locked), then by price (ascending)
     const sortedBookCards = [...bookCards].sort((a, b) => {
       // First sort by status (active/unlocked first, inactive/locked last)
-      const aStatus = a.status?.toLowerCase() || '';
-      const bStatus = b.status?.toLowerCase() || '';
+      const aStatus = (a.status || '').toLowerCase();
+      const bStatus = (b.status || '').toLowerCase();
 
-      const aIsActive = aStatus === 'active' ? 1 : 0;
-      const bIsActive = bStatus === 'active' ? 1 : 0;
-
-      console.log(`Comparing: ${a.lottery_game_name} (status="${aStatus}", active=${aIsActive}) vs ${b.lottery_game_name} (status="${bStatus}", active=${bIsActive})`);
-
-      if (aIsActive !== bIsActive) {
-        return bIsActive - aIsActive; // Active (1) comes before inactive (0)
+      // Explicit comparison: if statuses are different, prioritize active
+      if (aStatus === 'active' && bStatus !== 'active') {
+        return -1; // a (active) comes before b (inactive)
+      }
+      if (aStatus !== 'active' && bStatus === 'active') {
+        return 1; // b (active) comes before a (inactive)
       }
 
-      // Then sort by price (ascending)
+      // Same status: sort by price (ascending)
       return a.price - b.price;
     });
 
@@ -484,7 +482,10 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
     });
 
     console.log('\n🔄 Setting inventory state with sorted cards...');
-    setInventory([...sortedBookCards]); // Force new array reference for React re-render
+    console.log('Total cards being set:', sortedBookCards.length);
+    console.log('Active cards:', sortedBookCards.filter(b => b.status === 'active').length);
+    console.log('Inactive cards:', sortedBookCards.filter(b => b.status === 'inactive').length);
+    setInventory(sortedBookCards); // Set sorted cards directly
     setRecentTickets([]); // No recent tickets in this data structure
     setStats({
       total_inventory_value: totalRemainingValue,
@@ -668,7 +669,7 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
               const remainingValue = book.book_value;
 
               return (
-                <View key={`${book.lottery_id}-${book.book_id}`} style={styles.inventoryCard}>
+                <View key={`${book.lottery_id}-${book.book_id}-${index}`} style={styles.inventoryCard}>
                   <View style={styles.inventoryHeader}>
                     {book.image_url ? (
                       <View style={styles.inventoryImageContainer}>
@@ -1018,7 +1019,7 @@ const createStyles = (colors: any) =>
     },
     inventoryProgressFill: {
       height: '100%',
-      backgroundColor: colors.success,
+      backgroundColor: colors.accentOrange,
       borderRadius: 3,
     },
     inventoryProgressText: {

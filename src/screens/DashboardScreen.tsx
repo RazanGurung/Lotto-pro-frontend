@@ -163,12 +163,33 @@ export default function DashboardScreen({ route, navigation }: Props) {
               }
             });
 
-            console.log('\n📋 Final lottery assignments:');
+            console.log('\n📋 Final lottery assignments (before sorting):');
             updatedLotteries.forEach((lottery: Lottery) => {
               console.log(`  - ${lottery.lottery_name}: ${lottery.is_assigned ? 'ASSIGNED' : 'NOT ASSIGNED'} (${lottery.inventory_count} tickets)`);
             });
 
-            setLotteries(updatedLotteries);
+            // Sort: ASSIGNED (active) lotteries first, then NOT ASSIGNED (inactive)
+            const sortedLotteries = [...updatedLotteries].sort((a: Lottery, b: Lottery) => {
+              // First sort by assignment status (assigned first)
+              if (a.is_assigned && !b.is_assigned) {
+                return -1; // a (assigned) comes before b (not assigned)
+              }
+              if (!a.is_assigned && b.is_assigned) {
+                return 1; // b (assigned) comes before a (not assigned)
+              }
+
+              // Same status: sort by price (ascending)
+              const priceA = parseFloat(a.price) || 0;
+              const priceB = parseFloat(b.price) || 0;
+              return priceA - priceB;
+            });
+
+            console.log('\n✅ Final lottery assignments (after sorting - ASSIGNED first):');
+            sortedLotteries.forEach((lottery: Lottery, idx: number) => {
+              console.log(`  ${idx + 1}. ${lottery.lottery_name}: ${lottery.is_assigned ? '✓ ASSIGNED' : '✗ NOT ASSIGNED'} (Price: $${lottery.price})`);
+            });
+
+            setLotteries(sortedLotteries);
 
             // Also set inventory counts for backward compatibility
             const counts: InventoryCount = {};

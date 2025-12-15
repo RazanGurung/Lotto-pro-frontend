@@ -46,20 +46,28 @@ export default function PrintReportScreen({ route }: Props) {
   const { storeId, storeName } = route.params;
 
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [startDate, setStartDate] = useState(new Date());
+  const [endDate, setEndDate] = useState(new Date());
   const [reportData, setReportData] = useState<DailyReportData | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState<'start' | 'end' | null>(null);
 
   useEffect(() => {
     fetchDailyReport();
-  }, [selectedDate]);
+  }, [startDate, endDate]);
 
   const fetchDailyReport = async () => {
     try {
       setLoading(true);
-      const dateString = formatDateForAPI(selectedDate);
+      const startDateString = formatDateForAPI(startDate);
+      const endDateString = formatDateForAPI(endDate);
 
-      console.log('Fetching daily report for:', dateString);
-      const result = await ticketService.getDailyReport(storeId, dateString);
+      console.log('Fetching report for date range:', startDateString, 'to', endDateString);
+
+      // If same day, use single day API, otherwise use range API
+      const isSameDay = startDateString === endDateString;
+      const result = isSameDay
+        ? await ticketService.getDailyReport(storeId, startDateString)
+        : await ticketService.getDateRangeReport(storeId, startDateString, endDateString);
 
       if (result.success && result.data) {
         setReportData(result.data);
@@ -67,7 +75,7 @@ export default function PrintReportScreen({ route }: Props) {
         setReportData(null);
       }
     } catch (error) {
-      console.error('Error fetching daily report:', error);
+      console.error('Error fetching report:', error);
       setReportData(null);
     } finally {
       setLoading(false);
@@ -90,14 +98,33 @@ export default function PrintReportScreen({ route }: Props) {
     });
   };
 
-  const changeDate = (days: number) => {
-    const newDate = new Date(selectedDate);
-    newDate.setDate(newDate.getDate() + days);
-    setSelectedDate(newDate);
+  const setDateRange = (days: number) => {
+    const today = new Date();
+    const start = new Date();
+    start.setDate(today.getDate() - days);
+    setStartDate(start);
+    setEndDate(today);
   };
 
-  const goToToday = () => {
-    setSelectedDate(new Date());
+  const setToday = () => {
+    const today = new Date();
+    setStartDate(today);
+    setEndDate(today);
+  };
+
+  const setThisWeek = () => {
+    const today = new Date();
+    const start = new Date();
+    start.setDate(today.getDate() - 7);
+    setStartDate(start);
+    setEndDate(today);
+  };
+
+  const setThisMonth = () => {
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    setStartDate(start);
+    setEndDate(today);
   };
 
   const handlePrintReport = () => {
@@ -125,49 +152,93 @@ export default function PrintReportScreen({ route }: Props) {
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         <View style={styles.card}>
           <View style={styles.headerRow}>
-            <Text style={styles.title}>Daily Report</Text>
-            <TouchableOpacity onPress={goToToday} style={styles.todayButton}>
-              <Ionicons name="today" size={20} color={colors.primary} />
-              <Text style={styles.todayButtonText}>Today</Text>
-            </TouchableOpacity>
+            <Text style={styles.title}>Sales Report</Text>
           </View>
           <Text style={styles.storeName}>{storeName}</Text>
 
-          {/* Date Navigation */}
-          <View style={styles.dateSelector}>
-            <TouchableOpacity
-              style={styles.dateButton}
-              onPress={() => changeDate(-1)}
-            >
-              <Ionicons name="chevron-back" size={28} color={colors.primary} />
+          {/* Quick Date Range Presets */}
+          <View style={styles.presetsContainer}>
+            <TouchableOpacity onPress={setToday} style={styles.presetButton}>
+              <Text style={styles.presetButtonText}>Today</Text>
             </TouchableOpacity>
+            <TouchableOpacity onPress={setThisWeek} style={styles.presetButton}>
+              <Text style={styles.presetButtonText}>Last 7 Days</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={setThisMonth} style={styles.presetButton}>
+              <Text style={styles.presetButtonText}>This Month</Text>
+            </TouchableOpacity>
+          </View>
 
-            <View style={styles.dateDisplay}>
-              <Text style={styles.dateText}>{formatDateDisplay(selectedDate)}</Text>
+          {/* Date Range Selector */}
+          <View style={styles.dateRangeContainer}>
+            <View style={styles.dateRangeRow}>
+              <View style={styles.dateInputGroup}>
+                <Text style={styles.dateLabel}>From</Text>
+                <TouchableOpacity
+                  style={styles.dateInput}
+                  onPress={() => setShowDatePicker('start')}
+                >
+                  <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+                  <Text style={styles.dateInputText}>
+                    {startDate.toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <Ionicons name="arrow-forward" size={20} color={colors.textMuted} style={styles.arrowIcon} />
+
+              <View style={styles.dateInputGroup}>
+                <Text style={styles.dateLabel}>To</Text>
+                <TouchableOpacity
+                  style={styles.dateInput}
+                  onPress={() => setShowDatePicker('end')}
+                >
+                  <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+                  <Text style={styles.dateInputText}>
+                    {endDate.toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
-            <TouchableOpacity
-              style={styles.dateButton}
-              onPress={() => changeDate(1)}
-              disabled={formatDateForAPI(selectedDate) === formatDateForAPI(new Date())}
-            >
-              <Ionicons
-                name="chevron-forward"
-                size={28}
-                color={
-                  formatDateForAPI(selectedDate) === formatDateForAPI(new Date())
-                    ? colors.textMuted
-                    : colors.primary
-                }
-              />
-            </TouchableOpacity>
+            {/* Date Picker Modal - Simple Implementation */}
+            {showDatePicker && (
+              <View style={styles.datePickerModal}>
+                <View style={styles.datePickerHeader}>
+                  <Text style={styles.datePickerTitle}>
+                    Select {showDatePicker === 'start' ? 'Start' : 'End'} Date
+                  </Text>
+                  <TouchableOpacity onPress={() => setShowDatePicker(null)}>
+                    <Ionicons name="close" size={24} color={colors.textPrimary} />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.datePickerNote}>
+                  Use the preset buttons above or type a custom date range
+                </Text>
+              </View>
+            )}
           </View>
 
           {reportData ? (
             <>
               {/* Report Summary */}
               <View style={styles.previewSection}>
-                <Text style={styles.sectionTitle}>Summary</Text>
+                <View style={styles.summaryHeader}>
+                  <Text style={styles.sectionTitle}>Summary</Text>
+                  <Text style={styles.dateRangeInfo}>
+                    {formatDateForAPI(startDate) === formatDateForAPI(endDate)
+                      ? formatDateForAPI(startDate)
+                      : `${formatDateForAPI(startDate)} to ${formatDateForAPI(endDate)}`}
+                  </Text>
+                </View>
 
                 <View style={styles.summaryCard}>
                   <View style={styles.summaryRow}>
@@ -285,7 +356,7 @@ export default function PrintReportScreen({ route }: Props) {
               <Ionicons name="document-text-outline" size={64} color={colors.textMuted} />
               <Text style={styles.emptyStateTitle}>No Report Available</Text>
               <Text style={styles.emptyStateText}>
-                No sales data found for {formatDateDisplay(selectedDate)}
+                No sales data found for the selected date range
               </Text>
             </View>
           )}
@@ -369,35 +440,105 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 20,
   },
-  dateSelector: {
+  presetsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 15,
+  },
+  presetButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: colors.primary + '15',
+    alignItems: 'center',
+  },
+  presetButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  dateRangeContainer: {
+    marginBottom: 20,
+  },
+  dateRangeRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  dateInputGroup: {
+    flex: 1,
+  },
+  dateLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: 6,
+  },
+  dateInput: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
     backgroundColor: colors.backgroundDark,
-    marginBottom: 20,
-    borderRadius: 12,
-    padding: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  dateButton: {
-    padding: 8,
-  },
-  dateDisplay: {
+  dateInputText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textPrimary,
     flex: 1,
-    alignItems: 'center',
   },
-  dateText: {
-    fontSize: 15,
+  arrowIcon: {
+    marginBottom: 12,
+  },
+  datePickerModal: {
+    marginTop: 15,
+    padding: 15,
+    backgroundColor: colors.backgroundDark,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  datePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  datePickerTitle: {
+    fontSize: 16,
     fontWeight: '600',
     color: colors.textPrimary,
-    textAlign: 'center',
+  },
+  datePickerNote: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: colors.textPrimary,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 15,
+  },
+  dateRangeInfo: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    backgroundColor: colors.backgroundDark,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
   },
   previewSection: {
     marginBottom: 20,
