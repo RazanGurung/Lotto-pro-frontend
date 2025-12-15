@@ -635,19 +635,51 @@ export const ticketService = {
 
   /**
    * Get daily report for a store
+   * Supports multiple query types:
+   * - Today (default): no params
+   * - Specific date: date=2025-12-15
+   * - Last 7 days: range=last7
+   * - This month: range=this_month
+   * - Custom range: range=custom&start_date=2025-12-01&end_date=2025-12-15
    */
-  getDailyReport: async (storeId: number, date: string): Promise<ApiResponse<any>> => {
+  getDailyReport: async (storeId: number, params?: {
+    date?: string;
+    range?: 'last7' | 'this_month' | 'custom';
+    start_date?: string;
+    end_date?: string;
+  }): Promise<ApiResponse<any>> => {
     try {
-      console.log('=== DAILY REPORT API CALL ===');
-      console.log('Endpoint: /reports/store/' + storeId + '/daily?date=' + date);
-      console.log('Store ID:', storeId);
-      console.log('Date:', date);
-      console.log('Full URL:', `${config.API_BASE_URL}/reports/store/${storeId}/daily?date=${date}`);
+      // Build query string
+      let queryParams = '';
+      if (params) {
+        const queryParts: string[] = [];
 
-      const result = await retryFetch(() => apiRequest(`/reports/store/${storeId}/daily?date=${date}`));
+        if (params.date) {
+          queryParts.push(`date=${params.date}`);
+        } else if (params.range) {
+          queryParts.push(`range=${params.range}`);
+          if (params.range === 'custom' && params.start_date && params.end_date) {
+            queryParts.push(`start_date=${params.start_date}`);
+            queryParts.push(`end_date=${params.end_date}`);
+          }
+        }
+
+        if (queryParts.length > 0) {
+          queryParams = '?' + queryParts.join('&');
+        }
+      }
+
+      const endpoint = `/reports/store/${storeId}/daily${queryParams}`;
+
+      console.log('=== DAILY REPORT API CALL ===');
+      console.log('Endpoint:', endpoint);
+      console.log('Store ID:', storeId);
+      console.log('Params:', params);
+      console.log('Full URL:', `${config.API_BASE_URL}${endpoint}`);
+
+      const result = await retryFetch(() => apiRequest(endpoint));
 
       console.log('=== DAILY REPORT API RESPONSE ===');
-      console.log('Result object:', result);
       console.log('Result.success:', result.success);
       console.log('Result.data:', JSON.stringify(result.data, null, 2));
       console.log('Result.error:', result.error);
@@ -659,39 +691,6 @@ export const ticketService = {
       return {
         success: false,
         error: error.message || 'Failed to fetch daily report',
-      };
-    }
-  },
-
-  /**
-   * Get date range report for a store
-   */
-  getDateRangeReport: async (storeId: number, startDate: string, endDate: string): Promise<ApiResponse<any>> => {
-    try {
-      console.log('=== DATE RANGE REPORT API CALL ===');
-      console.log('Endpoint: /reports/store/' + storeId + '/range');
-      console.log('Store ID:', storeId);
-      console.log('Start Date:', startDate);
-      console.log('End Date:', endDate);
-      console.log('Full URL:', `${config.API_BASE_URL}/reports/store/${storeId}/range?start_date=${startDate}&end_date=${endDate}`);
-
-      const result = await retryFetch(() =>
-        apiRequest(`/reports/store/${storeId}/range?start_date=${startDate}&end_date=${endDate}`)
-      );
-
-      console.log('=== DATE RANGE REPORT API RESPONSE ===');
-      console.log('Result object:', result);
-      console.log('Result.success:', result.success);
-      console.log('Result.data:', JSON.stringify(result.data, null, 2));
-      console.log('Result.error:', result.error);
-      console.log('====================================');
-
-      return result;
-    } catch (error: any) {
-      console.error('Date Range Report API Error:', error);
-      return {
-        success: false,
-        error: error.message || 'Failed to fetch date range report',
       };
     }
   },

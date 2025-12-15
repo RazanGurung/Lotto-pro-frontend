@@ -139,7 +139,29 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
       const gameNumber = barcode.substring(0, 3);
       const bookId = barcode.substring(3, 9);
 
-      console.log('🔍 Checking if direction needed for:', gameNumber, bookId);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('🔍 CHECKING IF DIRECTION NEEDED');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('Barcode:', barcode);
+      console.log('Extracted Game Number:', gameNumber);
+      console.log('Extracted Book ID (Serial):', bookId);
+
+      // Find the lottery_id from game number using lotteryTypes
+      const matchedLottery = lotteryTypes.find(
+        lottery => lottery.lottery_number === gameNumber
+      );
+
+      if (!matchedLottery) {
+        console.log('✗ Lottery type not found for game number:', gameNumber);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        return true;
+      }
+
+      console.log('✓ Matched Lottery:', {
+        lottery_id: matchedLottery.lottery_id,
+        lottery_name: matchedLottery.lottery_name,
+        lottery_number: matchedLottery.lottery_number,
+      });
 
       const inventoryResult = await ticketService.getStoreInventory(parseInt(storeId, 10));
 
@@ -147,20 +169,53 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
         const inventoryData = inventoryResult.data.inventory || inventoryResult.data.data || inventoryResult.data;
 
         if (Array.isArray(inventoryData) && inventoryData.length > 0) {
-          const specificBook = inventoryData.find((item: any) => {
-            const itemGameNumber = item.lottery_game_number || item.lottery_number;
-            const itemBookId = item.pack_number || item.book_id || item.book_number;
-            return itemGameNumber === gameNumber && itemBookId === bookId;
+          console.log('Total inventory items:', inventoryData.length);
+
+          // Log first few items to see the actual field structure
+          console.log('Sample inventory items:');
+          inventoryData.slice(0, 3).forEach((item, idx) => {
+            console.log(`  Item ${idx + 1}:`, {
+              lottery_id: item.lottery_id,
+              serial_number: item.serial_number,
+              direction: item.direction,
+              status: item.status,
+            });
           });
 
-          if (specificBook && specificBook.direction && specificBook.direction !== 'unknown') {
-            console.log('✓ Book found with direction set:', specificBook.direction);
-            return false; // Direction NOT needed
+          // Match by lottery_id AND serial_number
+          const specificBook = inventoryData.find((item: any) => {
+            const lotteryIdMatches = item.lottery_id === matchedLottery.lottery_id;
+            const serialMatches = item.serial_number === bookId;
+
+            console.log(`  Comparing: lottery_id=${item.lottery_id} (match=${lotteryIdMatches}), serial=${item.serial_number} (match=${serialMatches})`);
+
+            return lotteryIdMatches && serialMatches;
+          });
+
+          if (specificBook) {
+            console.log('✓✓✓ BOOK FOUND IN INVENTORY! ✓✓✓');
+            console.log('  - Lottery ID:', specificBook.lottery_id);
+            console.log('  - Serial Number:', specificBook.serial_number);
+            console.log('  - Direction:', specificBook.direction);
+            console.log('  - Status:', specificBook.status);
+
+            if (specificBook.direction && specificBook.direction !== 'unknown') {
+              console.log('✓✓✓ Direction already set:', specificBook.direction, '✓✓✓');
+              console.log('➜➜➜ SKIPPING DIRECTION SELECTION ➜➜➜');
+              console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+              return false; // Direction NOT needed
+            } else {
+              console.log('⚠️ Direction is unknown or not set');
+            }
+          } else {
+            console.log('✗ Book NOT found in inventory');
+            console.log('  Looking for: lottery_id=' + matchedLottery.lottery_id + ', serial=' + bookId);
           }
         }
       }
 
-      console.log('✓ Direction IS needed (book not found or direction unknown)');
+      console.log('➜ Direction IS needed (book not found or direction unknown)');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       return true; // Direction IS needed
     } catch (error) {
       console.error('Error checking direction:', error);

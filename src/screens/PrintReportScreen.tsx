@@ -50,10 +50,11 @@ export default function PrintReportScreen({ route }: Props) {
   const [endDate, setEndDate] = useState(new Date());
   const [reportData, setReportData] = useState<DailyReportData | null>(null);
   const [showDatePicker, setShowDatePicker] = useState<'start' | 'end' | null>(null);
+  const [selectedPreset, setSelectedPreset] = useState<'today' | 'last7' | 'this_month' | 'custom'>('today');
 
   useEffect(() => {
     fetchDailyReport();
-  }, [startDate, endDate]);
+  }, [startDate, endDate, selectedPreset]);
 
   const fetchDailyReport = async () => {
     try {
@@ -61,13 +62,42 @@ export default function PrintReportScreen({ route }: Props) {
       const startDateString = formatDateForAPI(startDate);
       const endDateString = formatDateForAPI(endDate);
 
-      console.log('Fetching report for date range:', startDateString, 'to', endDateString);
+      console.log('Fetching report with preset:', selectedPreset);
+      console.log('Date range:', startDateString, 'to', endDateString);
 
-      // If same day, use single day API, otherwise use range API
-      const isSameDay = startDateString === endDateString;
-      const result = isSameDay
-        ? await ticketService.getDailyReport(storeId, startDateString)
-        : await ticketService.getDateRangeReport(storeId, startDateString, endDateString);
+      let result;
+
+      switch (selectedPreset) {
+        case 'today':
+          // Today (default): GET /api/reports/store/10/daily
+          result = await ticketService.getDailyReport(storeId);
+          break;
+
+        case 'last7':
+          // Last 7 days: GET /api/reports/store/10/daily?range=last7
+          result = await ticketService.getDailyReport(storeId, { range: 'last7' });
+          break;
+
+        case 'this_month':
+          // This month: GET /api/reports/store/10/daily?range=this_month
+          result = await ticketService.getDailyReport(storeId, { range: 'this_month' });
+          break;
+
+        case 'custom':
+          // Custom range: GET /api/reports/store/10/daily?range=custom&start_date=2025-12-01&end_date=2025-12-15
+          if (startDateString === endDateString) {
+            // Specific single date: GET /api/reports/store/10/daily?date=2025-12-15
+            result = await ticketService.getDailyReport(storeId, { date: startDateString });
+          } else {
+            // Date range
+            result = await ticketService.getDailyReport(storeId, {
+              range: 'custom',
+              start_date: startDateString,
+              end_date: endDateString,
+            });
+          }
+          break;
+      }
 
       if (result.success && result.data) {
         setReportData(result.data);
@@ -98,33 +128,33 @@ export default function PrintReportScreen({ route }: Props) {
     });
   };
 
-  const setDateRange = (days: number) => {
-    const today = new Date();
-    const start = new Date();
-    start.setDate(today.getDate() - days);
-    setStartDate(start);
-    setEndDate(today);
-  };
-
-  const setToday = () => {
+  const handleTodayPreset = () => {
     const today = new Date();
     setStartDate(today);
     setEndDate(today);
+    setSelectedPreset('today');
   };
 
-  const setThisWeek = () => {
+  const handleLast7DaysPreset = () => {
     const today = new Date();
     const start = new Date();
     start.setDate(today.getDate() - 7);
     setStartDate(start);
     setEndDate(today);
+    setSelectedPreset('last7');
   };
 
-  const setThisMonth = () => {
+  const handleThisMonthPreset = () => {
     const today = new Date();
     const start = new Date(today.getFullYear(), today.getMonth(), 1);
     setStartDate(start);
     setEndDate(today);
+    setSelectedPreset('this_month');
+  };
+
+  const handleCustomDateChange = () => {
+    // When user manually changes dates, switch to custom mode
+    setSelectedPreset('custom');
   };
 
   const handlePrintReport = () => {
@@ -158,14 +188,29 @@ export default function PrintReportScreen({ route }: Props) {
 
           {/* Quick Date Range Presets */}
           <View style={styles.presetsContainer}>
-            <TouchableOpacity onPress={setToday} style={styles.presetButton}>
-              <Text style={styles.presetButtonText}>Today</Text>
+            <TouchableOpacity
+              onPress={handleTodayPreset}
+              style={[styles.presetButton, selectedPreset === 'today' && styles.presetButtonActive]}
+            >
+              <Text style={[styles.presetButtonText, selectedPreset === 'today' && styles.presetButtonTextActive]}>
+                Today
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={setThisWeek} style={styles.presetButton}>
-              <Text style={styles.presetButtonText}>Last 7 Days</Text>
+            <TouchableOpacity
+              onPress={handleLast7DaysPreset}
+              style={[styles.presetButton, selectedPreset === 'last7' && styles.presetButtonActive]}
+            >
+              <Text style={[styles.presetButtonText, selectedPreset === 'last7' && styles.presetButtonTextActive]}>
+                Last 7 Days
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={setThisMonth} style={styles.presetButton}>
-              <Text style={styles.presetButtonText}>This Month</Text>
+            <TouchableOpacity
+              onPress={handleThisMonthPreset}
+              style={[styles.presetButton, selectedPreset === 'this_month' && styles.presetButtonActive]}
+            >
+              <Text style={[styles.presetButtonText, selectedPreset === 'this_month' && styles.presetButtonTextActive]}>
+                This Month
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -176,7 +221,10 @@ export default function PrintReportScreen({ route }: Props) {
                 <Text style={styles.dateLabel}>From</Text>
                 <TouchableOpacity
                   style={styles.dateInput}
-                  onPress={() => setShowDatePicker('start')}
+                  onPress={() => {
+                    handleCustomDateChange();
+                    setShowDatePicker('start');
+                  }}
                 >
                   <Ionicons name="calendar-outline" size={18} color={colors.primary} />
                   <Text style={styles.dateInputText}>
@@ -195,7 +243,10 @@ export default function PrintReportScreen({ route }: Props) {
                 <Text style={styles.dateLabel}>To</Text>
                 <TouchableOpacity
                   style={styles.dateInput}
-                  onPress={() => setShowDatePicker('end')}
+                  onPress={() => {
+                    handleCustomDateChange();
+                    setShowDatePicker('end');
+                  }}
                 >
                   <Ionicons name="calendar-outline" size={18} color={colors.primary} />
                   <Text style={styles.dateInputText}>
@@ -234,7 +285,13 @@ export default function PrintReportScreen({ route }: Props) {
                 <View style={styles.summaryHeader}>
                   <Text style={styles.sectionTitle}>Summary</Text>
                   <Text style={styles.dateRangeInfo}>
-                    {formatDateForAPI(startDate) === formatDateForAPI(endDate)
+                    {selectedPreset === 'today'
+                      ? 'Today'
+                      : selectedPreset === 'last7'
+                      ? 'Last 7 Days'
+                      : selectedPreset === 'this_month'
+                      ? 'This Month'
+                      : formatDateForAPI(startDate) === formatDateForAPI(endDate)
                       ? formatDateForAPI(startDate)
                       : `${formatDateForAPI(startDate)} to ${formatDateForAPI(endDate)}`}
                   </Text>
@@ -452,11 +509,20 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.primary + '15',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  presetButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   presetButtonText: {
     fontSize: 13,
     fontWeight: '600',
     color: colors.primary,
+  },
+  presetButtonTextActive: {
+    color: colors.white,
   },
   dateRangeContainer: {
     marginBottom: 20,

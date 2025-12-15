@@ -231,32 +231,35 @@ export default function LotteryOrganizationDashboardScreen({ navigation, route }
       </View>
 
       {/* Price Filter */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.priceFilterContainer}
-        contentContainerStyle={styles.priceFilterContent}
-      >
-        <TouchableOpacity
-          style={[styles.priceFilterChip, priceFilter === 'all' && styles.activePriceFilterChip]}
-          onPress={() => setPriceFilter('all')}
+      <View style={styles.priceFilterWrapper}>
+        <Text style={styles.priceFilterLabel}>Filter by Price:</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.priceFilterContainer}
+          contentContainerStyle={styles.priceFilterContent}
         >
-          <Text style={[styles.priceFilterText, priceFilter === 'all' && styles.activePriceFilterText]}>
-            All Prices
-          </Text>
-        </TouchableOpacity>
-        {['1', '2', '3', '5', '10', '20', '30', '50'].map((price) => (
           <TouchableOpacity
-            key={price}
-            style={[styles.priceFilterChip, priceFilter === price && styles.activePriceFilterChip]}
-            onPress={() => setPriceFilter(price as any)}
+            style={[styles.priceFilterChip, priceFilter === 'all' && styles.activePriceFilterChip]}
+            onPress={() => setPriceFilter('all')}
           >
-            <Text style={[styles.priceFilterText, priceFilter === price && styles.activePriceFilterText]}>
-              ${price}
+            <Text style={[styles.priceFilterText, priceFilter === 'all' && styles.activePriceFilterText]}>
+              All
             </Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+          {['1', '2', '3', '5', '10', '20', '30', '50'].map((price) => (
+            <TouchableOpacity
+              key={price}
+              style={[styles.priceFilterChip, priceFilter === price && styles.activePriceFilterChip]}
+              onPress={() => setPriceFilter(price as any)}
+            >
+              <Text style={[styles.priceFilterText, priceFilter === price && styles.activePriceFilterText]}>
+                ${price}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
 
       {/* Filter Tabs */}
       <View style={styles.filterContainer}>
@@ -411,38 +414,59 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  priceFilterWrapper: {
+    backgroundColor: colors.backgroundDark,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    marginBottom: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.border,
+  },
+  priceFilterLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
   priceFilterContainer: {
-    maxHeight: 50,
+    flexGrow: 0,
   },
   priceFilterContent: {
-    paddingHorizontal: 15,
-    paddingBottom: 10,
     gap: 8,
+    alignItems: 'center',
+    paddingRight: 15,
   },
   priceFilterChip: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: colors.white,
+    borderWidth: 2,
     borderColor: colors.border,
+    minWidth: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   activePriceFilterChip: {
-    backgroundColor: colors.secondary,
-    borderColor: colors.secondary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+    borderWidth: 2.5,
   },
   priceFilterText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
   },
   activePriceFilterText: {
     color: colors.white,
+    fontSize: 14,
   },
   filterContainer: {
     flexDirection: 'row',
     paddingHorizontal: 15,
-    paddingTop: 5,
+    paddingTop: 10,
     paddingBottom: 15,
     gap: 10,
   },
