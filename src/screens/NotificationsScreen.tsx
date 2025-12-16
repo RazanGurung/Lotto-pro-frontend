@@ -1,86 +1,96 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { notificationService } from '../services/api';
+import { useFocusEffect } from '@react-navigation/native';
 
 type Props = {
   navigation: any;
 };
 
 type Notification = {
-  id: string;
+  id: number;
+  notification_id?: number;
   type: 'low_stock' | 'sale' | 'alert' | 'update' | 'reminder';
   title: string;
   message: string;
-  timestamp: string;
+  created_at: string;
   read: boolean;
+  is_read?: boolean;
+  store_name?: string;
   storeName?: string;
 };
-
-const MOCK_NOTIFICATIONS: Notification[] = [
-  {
-    id: '1',
-    type: 'low_stock',
-    title: 'Low Stock Alert',
-    message: 'Lucky 7s tickets are running low (15 remaining)',
-    timestamp: '5 minutes ago',
-    read: false,
-    storeName: 'Downtown Store',
-  },
-  {
-    id: '2',
-    type: 'sale',
-    title: 'High Sales Today',
-    message: 'Your store has reached 42 ticket sales today!',
-    timestamp: '1 hour ago',
-    read: false,
-    storeName: 'Downtown Store',
-  },
-  {
-    id: '3',
-    type: 'alert',
-    title: 'Inventory Update Required',
-    message: 'Please update inventory counts for Gold Rush tickets',
-    timestamp: '3 hours ago',
-    read: true,
-    storeName: 'Westside Store',
-  },
-  {
-    id: '4',
-    type: 'update',
-    title: 'App Update Available',
-    message: 'Version 1.1.0 is now available with new features',
-    timestamp: '1 day ago',
-    read: true,
-  },
-  {
-    id: '5',
-    type: 'reminder',
-    title: 'Weekly Report Due',
-    message: 'Don\'t forget to submit your weekly inventory report',
-    timestamp: '2 days ago',
-    read: true,
-    storeName: 'Downtown Store',
-  },
-  {
-    id: '6',
-    type: 'low_stock',
-    title: 'Critical Stock Level',
-    message: 'Diamond Jackpot tickets only have 5 remaining',
-    timestamp: '2 days ago',
-    read: true,
-    storeName: 'North Branch',
-  },
-];
 
 export default function NotificationsScreen({ navigation }: Props) {
   const colors = useTheme();
   const styles = createStyles(colors);
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchNotifications();
+    }, [])
+  );
+
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const result = await notificationService.getNotifications();
+
+      if (result.success && result.data) {
+        const notificationsData = Array.isArray(result.data) ? result.data : result.data.notifications || [];
+        // Normalize notification data
+        const normalizedNotifications = notificationsData.map((n: any) => ({
+          id: n.id || n.notification_id,
+          notification_id: n.notification_id || n.id,
+          type: n.type || 'alert',
+          title: n.title,
+          message: n.message,
+          created_at: n.created_at,
+          read: n.read !== undefined ? n.read : n.is_read || false,
+          is_read: n.is_read !== undefined ? n.is_read : n.read || false,
+          store_name: n.store_name || n.storeName,
+          storeName: n.storeName || n.store_name,
+        }));
+        setNotifications(normalizedNotifications);
+      } else {
+        setNotifications([]);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      setNotifications([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchNotifications();
+    setRefreshing(false);
+  };
+
+  const getRelativeTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const unreadCount = notifications.filter(n => n.read === false || n.is_read === false).length;
 
   const getIconName = (type: string) => {
     switch (type) {
@@ -116,18 +126,42 @@ export default function NotificationsScreen({ navigation }: Props) {
     }
   };
 
-  const handleMarkAsRead = (id: string) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === id ? { ...n, read: true } : n))
-    );
+  const handleMarkAsRead = async (id: number) => {
+    try {
+      const result = await notificationService.markAsRead(id);
+      if (result.success) {
+        // Update local state optimistically
+        setNotifications(prev =>
+          prev.map(n => (n.id === id ? { ...n, read: true, is_read: true } : n))
+        );
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
   };
 
-  const handleMarkAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const handleMarkAllAsRead = async () => {
+    try {
+      const result = await notificationService.markAllAsRead();
+      if (result.success) {
+        // Update local state optimistically
+        setNotifications(prev => prev.map(n => ({ ...n, read: true, is_read: true })));
+      }
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
   };
 
-  const handleDeleteNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+  const handleDeleteNotification = async (id: number) => {
+    try {
+      const result = await notificationService.deleteNotification(id);
+      if (result.success) {
+        // Update local state optimistically
+        setNotifications(prev => prev.filter(n => n.id !== id));
+      }
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
   };
 
   const filteredNotifications = filter === 'unread'
@@ -155,11 +189,11 @@ export default function NotificationsScreen({ navigation }: Props) {
         </View>
         <Text style={styles.notificationMessage}>{item.message}</Text>
         <View style={styles.notificationFooter}>
-          <Text style={styles.notificationTime}>{item.timestamp}</Text>
-          {item.storeName && (
+          <Text style={styles.notificationTime}>{getRelativeTime(item.created_at)}</Text>
+          {(item.storeName || item.store_name) && (
             <>
               <Text style={styles.footerDot}>•</Text>
-              <Text style={styles.storeName}>{item.storeName}</Text>
+              <Text style={styles.storeName}>{item.storeName || item.store_name}</Text>
             </>
           )}
         </View>
@@ -227,13 +261,26 @@ export default function NotificationsScreen({ navigation }: Props) {
       )}
 
       {/* Notifications List */}
-      {filteredNotifications.length > 0 ? (
+      {loading && !refreshing ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading notifications...</Text>
+        </View>
+      ) : filteredNotifications.length > 0 ? (
         <FlatList
           data={filteredNotifications}
           renderItem={renderNotification}
-          keyExtractor={item => item.id}
+          keyExtractor={item => item.id.toString()}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
         />
       ) : (
         <View style={styles.emptyState}>
@@ -431,6 +478,16 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: colors.textSecondary,
   },
   emptyState: {
     flex: 1,

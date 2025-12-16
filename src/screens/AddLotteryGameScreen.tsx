@@ -66,7 +66,7 @@ export default function AddLotteryGameScreen({ navigation, route }: Props) {
 
     setLoading(true);
 
-    const result = await lotteryService.createLottery({
+    const lotteryData = {
       lottery_name: gameName.trim(),
       lottery_number: lotteryNumber.trim(),
       state: state,
@@ -76,7 +76,17 @@ export default function AddLotteryGameScreen({ navigation, route }: Props) {
       launch_date: launchDate.trim() || undefined,
       status: isAvailable ? 'active' : 'inactive',
       image_url: imageUrl.trim() || undefined,
-    });
+    };
+
+    console.log('=== CREATING LOTTERY ===');
+    console.log('Lottery Data:', JSON.stringify(lotteryData, null, 2));
+
+    const result = await lotteryService.createLottery(lotteryData);
+
+    console.log('=== CREATE LOTTERY RESULT ===');
+    console.log('Success:', result.success);
+    console.log('Error:', result.error);
+    console.log('Full Result:', JSON.stringify(result, null, 2));
 
     setLoading(false);
 
@@ -88,7 +98,34 @@ export default function AddLotteryGameScreen({ navigation, route }: Props) {
         }
       ]);
     } else {
-      Alert.alert('Error', result.error || 'Failed to create lottery game');
+      // Get the error message from the backend
+      const errorMessage = result.error || 'Failed to create lottery game';
+
+      console.log('=== ERROR CREATING LOTTERY ===');
+      console.log('Error Message:', errorMessage);
+
+      // Check if error is related to duplicate lottery name
+      const isDuplicateError = errorMessage.toLowerCase().includes('duplicate') ||
+                               errorMessage.toLowerCase().includes('already exists') ||
+                               errorMessage.toLowerCase().includes('unique') ||
+                               errorMessage.toLowerCase().includes('constraint');
+
+      if (isDuplicateError) {
+        Alert.alert(
+          'Duplicate Entry',
+          `A lottery with this information already exists. Error: ${errorMessage}\n\nPlease check:\n• Lottery Name\n• Lottery Number\n• State`
+        );
+      } else {
+        Alert.alert(
+          'Error Creating Lottery',
+          errorMessage,
+          [
+            {
+              text: 'OK'
+            }
+          ]
+        );
+      }
     }
   };
 
@@ -129,6 +166,7 @@ export default function AddLotteryGameScreen({ navigation, route }: Props) {
               onChangeText={setGameName}
               editable={!loading}
             />
+            <Text style={styles.helperText}>Official name of the lottery game</Text>
           </View>
 
           {/* Lottery Number */}
@@ -142,6 +180,7 @@ export default function AddLotteryGameScreen({ navigation, route }: Props) {
               onChangeText={setLotteryNumber}
               editable={!loading}
             />
+            <Text style={styles.helperText}>Unique identifier code for this lottery</Text>
           </View>
 
           {/* Price */}
