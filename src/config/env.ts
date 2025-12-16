@@ -50,4 +50,7 @@ export const STORAGE_KEYS = {
   USER_TYPE: '@user_type',
   THEME_MODE: '@theme_mode',
   ONBOARDING_COMPLETE: '@onboarding_complete',
+  TERMS_ACCEPTED: '@terms_accepted',
+  TERMS_ACCEPTED_DATE: '@terms_accepted_date',
+  TERMS_VERSION: '@terms_version',
 } as const;

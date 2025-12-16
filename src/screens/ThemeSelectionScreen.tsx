@@ -23,8 +23,8 @@ export default function ThemeSelectionScreen({ navigation }: Props) {
 
   const handleContinue = async () => {
     await setThemeMode(selectedTheme);
-    await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
-    navigation.replace('MainTabs');
+    // Onboarding completion moved to TermsAcceptanceScreen
+    navigation.replace('TermsAcceptance');
   };
 
   const themeOptions = [

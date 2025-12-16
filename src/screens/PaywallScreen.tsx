@@ -70,20 +70,25 @@ export default function PaywallScreen({ navigation }: Props) {
     } catch (error) {
       console.error('Error checking subscription:', error);
       // Continue to show paywall if check fails
+      setLoading(false);
     }
   };
 
   const navigateToMainApp = async () => {
     try {
-      const userType = await AsyncStorage.getItem(STORAGE_KEYS.USER_TYPE);
+      // Batch AsyncStorage reads for better performance
+      const [userType, onboardingComplete] = await AsyncStorage.multiGet([
+        STORAGE_KEYS.USER_TYPE,
+        STORAGE_KEYS.ONBOARDING_COMPLETE,
+      ]);
 
-      if (userType === 'store') {
+      const userTypeValue = userType[1];
+      const onboardingCompleteValue = onboardingComplete[1];
+
+      if (userTypeValue === 'store') {
         navigation.replace('StoreDashboard');
       } else {
-        // Check if onboarding is complete
-        const onboardingComplete = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE);
-
-        if (onboardingComplete === 'true') {
+        if (onboardingCompleteValue === 'true') {
           navigation.replace('MainTabs');
         } else {
           navigation.replace('ThemeSelection');
@@ -212,7 +217,7 @@ export default function PaywallScreen({ navigation }: Props) {
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading subscription plans...</Text>
+          <Text style={styles.loadingText}>Loading...</Text>
         </View>
       </SafeAreaView>
     );

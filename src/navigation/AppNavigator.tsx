@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useColorScheme, Text, Platform } from 'react-native';
@@ -30,6 +30,7 @@ import ChangePasswordScreen from '../screens/ChangePasswordScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import TermsOfServiceScreen from '../screens/TermsOfServiceScreen';
 import ThemeSelectionScreen from '../screens/ThemeSelectionScreen';
+import TermsAcceptanceScreen from '../screens/TermsAcceptanceScreen';
 import LotteryOrganizationListScreen from '../screens/LotteryOrganizationListScreen';
 import LotteryOrganizationDashboardScreen from '../screens/LotteryOrganizationDashboardScreen';
 import AddLotteryGameScreen from '../screens/AddLotteryGameScreen';
@@ -55,6 +56,7 @@ export type RootStackParamList = {
   ForgotPassword: undefined;
   Paywall: undefined;
   ThemeSelection: undefined;
+  TermsAcceptance: undefined;
   MainTabs: undefined;
   StoreDashboard: undefined;
   StoreList: undefined;
@@ -333,12 +335,27 @@ export default function AppNavigator() {
   const colorScheme = useColorScheme();
   const colors = colorScheme === 'dark' ? darkTheme : lightTheme;
 
+  // Create navigation theme to prevent white flashes during transitions
+  const navigationTheme = {
+    ...(colorScheme === 'dark' ? DarkTheme : DefaultTheme),
+    colors: {
+      ...(colorScheme === 'dark' ? DarkTheme.colors : DefaultTheme.colors),
+      background: colors.background,
+      card: colors.surface,
+      text: colors.textPrimary,
+      border: colors.border,
+      primary: colors.primary,
+    },
+  };
+
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={navigationTheme}>
       <Stack.Navigator
         initialRouteName="Login"
         screenOptions={{
           headerShown: false, // Hide all default headers
+          animation: 'fade', // Smooth fade transition to prevent white flashes
+          animationDuration: 200, // Fast animation
         }}
       >
         <Stack.Screen
@@ -360,6 +377,10 @@ export default function AppNavigator() {
         <Stack.Screen
           name="ThemeSelection"
           component={ThemeSelectionScreen}
+        />
+        <Stack.Screen
+          name="TermsAcceptance"
+          component={TermsAcceptanceScreen}
         />
         <Stack.Screen
           name="MainTabs"
