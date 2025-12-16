@@ -60,7 +60,8 @@ export default function LoginScreen({ navigation }: Props) {
 
         // For store account login, also save store data if available
         if (result.data.store) {
-          await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(result.data.store));
+          console.log('Store data found in login response:', result.data.store);
+          await AsyncStorage.setItem(STORAGE_KEYS.STORE_DATA, JSON.stringify(result.data.store));
         }
 
         // Determine user type from user data or success message

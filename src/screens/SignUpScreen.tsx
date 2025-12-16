@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Image, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
 import { authService } from '../services/api';
 import { Ionicons } from '@expo/vector-icons';
+import { STORAGE_KEYS } from '../config/env';
 
 type SignUpScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'SignUp'>;
 
@@ -108,6 +110,15 @@ export default function SignUpScreen({ navigation }: Props) {
       setLoading(false);
 
       if (result.success) {
+        // Store authentication token and user data if available
+        if (result.data?.token) {
+          await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, result.data.token);
+        }
+
+        if (result.data?.user) {
+          await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(result.data.user));
+        }
+
         Alert.alert('Success', 'Account created successfully! Let\'s set up your preferences...');
         setTimeout(() => {
           navigation.replace('ThemeSelection');
