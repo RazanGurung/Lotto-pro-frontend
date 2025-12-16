@@ -46,6 +46,7 @@ export const isProduction = ENV === 'production';
 export const STORAGE_KEYS = {
   AUTH_TOKEN: '@auth_token',
   USER_DATA: '@user_data',
+  STORE_DATA: '@store_data',
   USER_TYPE: '@user_type',
   THEME_MODE: '@theme_mode',
   ONBOARDING_COMPLETE: '@onboarding_complete',
