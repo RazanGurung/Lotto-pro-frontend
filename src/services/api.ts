@@ -177,7 +177,6 @@ const apiRequest = async <T>(
     // Add auth token if required
     if (requiresAuth) {
       const token = await getAuthToken();
-      console.log('Auth token retrieved:', token ? `${token.substring(0, 20)}...` : 'null');
       if (!token) {
         throw new AuthenticationError('No authentication token found. Please login again.');
       }
@@ -186,23 +185,12 @@ const apiRequest = async <T>(
 
     const url = `${config.API_BASE_URL}${endpoint}`;
 
-    console.log('=== API REQUEST ===');
-    console.log('Base URL:', config.API_BASE_URL);
-    console.log('Endpoint:', endpoint);
-    console.log('Full URL:', url);
-    console.log('Method:', options.method || 'GET');
-    console.log('Headers:', JSON.stringify(headers, null, 2));
-
     const response = await fetchWithTimeout(url, {
       ...options,
       headers,
     });
 
-    console.log('Response status:', response.status);
-    console.log('Response OK:', response.ok);
-
     const result = await response.json();
-    console.log('Response body:', JSON.stringify(result, null, 2));
 
     // Handle HTTP error codes
     if (!response.ok) {
@@ -450,12 +438,7 @@ export const lotteryService = {
    */
   getLotteryTypes: async (storeId: number): Promise<ApiResponse<any>> => {
     try {
-      console.log('=== LOTTERY TYPES API CALL ===');
-      console.log('Endpoint: /lottery/types/store/' + storeId);
-      console.log('Store ID:', storeId);
-      console.log('Note: Sending Bearer token + store ID in URL');
       const result = await retryFetch(() => apiRequest(`/lottery/types/store/${storeId}`));
-      console.log('Lottery Types Result:', result);
       return result;
     } catch (error: any) {
       console.error('Lottery Types Error:', error);
@@ -508,12 +491,6 @@ export const ticketService = {
    */
   scanTicket: async (rawBarcode: string, storeId: number, direction?: 'asc' | 'desc'): Promise<ApiResponse<any>> => {
     try {
-      console.log('=== SCAN TICKET API CALL ===');
-      console.log('Endpoint: POST /lotteries/scan');
-      console.log('Store ID:', storeId);
-      console.log('Raw Barcode:', rawBarcode);
-      console.log('Direction:', direction || 'not specified');
-
       const body: any = {
         barcode_data: rawBarcode,
         store_id: storeId,
@@ -528,8 +505,6 @@ export const ticketService = {
         body: JSON.stringify(body),
       });
     } catch (error: any) {
-      // Log for debugging but return clean error response
-      console.log('Scan API Error (caught):', error.message);
       return {
         success: false,
         error: error.message || 'Failed to scan ticket',
@@ -559,11 +534,7 @@ export const ticketService = {
    */
   getTickets: async (storeId: number, state: string): Promise<ApiResponse<any>> => {
     try {
-      console.log('=== TICKET SERVICE API CALL ===');
-      console.log('Endpoint: /lottery/types');
-      console.log('Note: Only sending Bearer token in headers');
       const result = await retryFetch(() => apiRequest(`/lottery/types`));
-      console.log('API Result:', result);
       return result;
     } catch (error: any) {
       console.error('API Error:', error);
@@ -579,21 +550,7 @@ export const ticketService = {
    */
   getStoreInventory: async (storeId: number): Promise<ApiResponse<any>> => {
     try {
-      console.log('=== STORE INVENTORY API CALL ===');
-      console.log('Endpoint: /lottery/store/' + storeId + '/inventory');
-      console.log('Store ID:', storeId);
-      console.log('Full URL:', `${config.API_BASE_URL}/lottery/store/${storeId}/inventory`);
-
       const result = await retryFetch(() => apiRequest(`/lottery/store/${storeId}/inventory`));
-
-      console.log('=== INVENTORY API RESPONSE ===');
-      console.log('Result object:', result);
-      console.log('Result.success:', result.success);
-      console.log('Result.data type:', typeof result.data);
-      console.log('Result.data:', JSON.stringify(result.data, null, 2));
-      console.log('Result.error:', result.error);
-      console.log('================================');
-
       return result;
     } catch (error: any) {
       console.error('Inventory API Error:', error);
@@ -609,20 +566,7 @@ export const ticketService = {
    */
   getClerkDashboard: async (storeId: number): Promise<ApiResponse<any>> => {
     try {
-      console.log('=== CLERK DASHBOARD API CALL ===');
-      console.log('Endpoint: /stores/clerk/' + storeId + '/dashboard');
-      console.log('Store ID:', storeId);
-      console.log('Full URL:', `${config.API_BASE_URL}/stores/clerk/${storeId}/dashboard`);
-
       const result = await retryFetch(() => apiRequest(`/stores/clerk/${storeId}/dashboard`));
-
-      console.log('=== CLERK DASHBOARD API RESPONSE ===');
-      console.log('Result object:', result);
-      console.log('Result.success:', result.success);
-      console.log('Result.data:', JSON.stringify(result.data, null, 2));
-      console.log('Result.error:', result.error);
-      console.log('====================================');
-
       return result;
     } catch (error: any) {
       console.error('Clerk Dashboard API Error:', error);
@@ -670,21 +614,7 @@ export const ticketService = {
       }
 
       const endpoint = `/reports/store/${storeId}/daily${queryParams}`;
-
-      console.log('=== DAILY REPORT API CALL ===');
-      console.log('Endpoint:', endpoint);
-      console.log('Store ID:', storeId);
-      console.log('Params:', params);
-      console.log('Full URL:', `${config.API_BASE_URL}${endpoint}`);
-
       const result = await retryFetch(() => apiRequest(endpoint));
-
-      console.log('=== DAILY REPORT API RESPONSE ===');
-      console.log('Result.success:', result.success);
-      console.log('Result.data:', JSON.stringify(result.data, null, 2));
-      console.log('Result.error:', result.error);
-      console.log('====================================');
-
       return result;
     } catch (error: any) {
       console.error('Daily Report API Error:', error);

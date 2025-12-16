@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../contexts/ThemeContext';
 import { authService } from '../services/api';
+import { STORAGE_KEYS } from '../config/env';
 
 type Props = {
   navigation: any;
@@ -28,11 +30,7 @@ export default function EditProfileScreen({ navigation }: Props) {
     setFetching(true);
     const result = await authService.getProfile();
 
-    console.log('Profile API Response:', result);
-
     if (result.success && result.data) {
-      console.log('Profile Data:', result.data);
-
       // Handle different response formats
       const profileData = result.data.user || result.data;
 
@@ -66,6 +64,14 @@ export default function EditProfileScreen({ navigation }: Props) {
     setLoading(false);
 
     if (result.success) {
+      // Clear store data from AsyncStorage after successful profile update
+      try {
+        await AsyncStorage.removeItem(STORAGE_KEYS.STORE_DATA);
+        console.log('Store data cleared from AsyncStorage after profile update');
+      } catch (error) {
+        console.error('Failed to clear store data:', error);
+      }
+
       Alert.alert(
         'Success',
         'Profile updated successfully!',

@@ -148,10 +148,6 @@ export default function StoreListScreen({ navigation }: Props) {
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => {
-            console.log('=== NAVIGATING TO STORE LOTTERY DASHBOARD ===');
-            console.log('Store ID:', item.id);
-            console.log('Store Name:', item.store_name);
-            console.log('Note: Only sending Bearer token to API');
             navigation.navigate('StoreLotteryDashboard', {
               storeId: item.id,
               storeName: item.store_name

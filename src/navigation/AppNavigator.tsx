@@ -28,7 +28,6 @@ import PrivacySecurityScreen from '../screens/PrivacySecurityScreen';
 import ChangePasswordScreen from '../screens/ChangePasswordScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import TermsOfServiceScreen from '../screens/TermsOfServiceScreen';
-import PaymentManagementScreen from '../screens/PaymentManagementScreen';
 import ThemeSelectionScreen from '../screens/ThemeSelectionScreen';
 import LotteryOrganizationListScreen from '../screens/LotteryOrganizationListScreen';
 import LotteryOrganizationDashboardScreen from '../screens/LotteryOrganizationDashboardScreen';
@@ -37,6 +36,7 @@ import EditLotteryGameScreen from '../screens/EditLotteryGameScreen';
 import LotteryGameDetailScreen from '../screens/LotteryGameDetailScreen';
 import StoreLotteryDashboardScreen from '../screens/StoreLotteryDashboardScreen';
 import StoreLotteryGameDetailScreen from '../screens/StoreLotteryGameDetailScreen';
+import PaywallScreen from '../screens/PaywallScreen';
 import { lightTheme, darkTheme } from '../styles/colors';
 
 type ScratchOffLottery = {
@@ -52,6 +52,7 @@ export type RootStackParamList = {
   Login: undefined;
   SignUp: undefined;
   ForgotPassword: undefined;
+  Paywall: undefined;
   ThemeSelection: undefined;
   MainTabs: undefined;
   StoreDashboard: undefined;
@@ -71,7 +72,6 @@ export type RootStackParamList = {
   ChangePassword: undefined;
   PrivacyPolicy: undefined;
   TermsOfService: undefined;
-  PaymentManagement: undefined;
   LotteryOrganizationList: undefined;
   LotteryOrganizationDashboard: {
     organizationId: string;
@@ -127,12 +127,7 @@ function MainTabNavigator() {
   useEffect(() => {
     const getUserType = async () => {
       const type = await AsyncStorage.getItem('@user_type');
-      console.log('=== TAB NAVIGATOR ===');
-      console.log('User type from storage:', type);
       setUserType(type || 'store_owner');
-      console.log('Using userType:', type || 'store_owner');
-      console.log('Is SuperAdmin?', type === 'superadmin');
-      console.log('====================');
     };
     getUserType();
   }, []);
@@ -334,6 +329,10 @@ export default function AppNavigator() {
           component={ForgotPasswordScreen}
         />
         <Stack.Screen
+          name="Paywall"
+          component={PaywallScreen}
+        />
+        <Stack.Screen
           name="ThemeSelection"
           component={ThemeSelectionScreen}
         />
@@ -408,10 +407,6 @@ export default function AppNavigator() {
         <Stack.Screen
           name="TermsOfService"
           component={TermsOfServiceScreen}
-        />
-        <Stack.Screen
-          name="PaymentManagement"
-          component={PaymentManagementScreen}
         />
         <Stack.Screen
           name="LotteryOrganizationList"
