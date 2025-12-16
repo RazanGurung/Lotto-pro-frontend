@@ -64,12 +64,6 @@ export default function LoginScreen({ navigation }: Props) {
           await AsyncStorage.setItem(STORAGE_KEYS.STORE_DATA, JSON.stringify(result.data.store));
         }
 
-        console.log('=== LOGIN DATA DEBUG ===');
-        console.log('Full result.data:', JSON.stringify(result.data, null, 2));
-        console.log('result.data.user:', result.data.user);
-        console.log('result.data.store:', result.data.store);
-        console.log('========================');
-
         // Determine user type from user data or success message
         const userRole = result.data.user?.role || result.data.user?.type || result.data.user?.user_type || '';
         const successMessage = result.message || result.data?.message || result.msg || result.data?.msg || '';
@@ -90,25 +84,13 @@ export default function LoginScreen({ navigation }: Props) {
 
         await AsyncStorage.setItem(STORAGE_KEYS.USER_TYPE, userType);
 
-        console.log('=== LOGIN SUCCESS ===');
-        console.log('Success Message:', successMessage);
-        console.log('User Role:', userRole);
-        console.log('Detected User Type:', userType);
-        console.log('====================');
-
         // Route based on user type
         if (userType === 'store') {
-          // Store account users go directly to StoreDashboard
-          navigation.replace('StoreDashboard');
+          // Store account users go to Paywall (must subscribe)
+          navigation.replace('Paywall');
         } else {
-          // Super Admin and Store Owner go through onboarding flow
-          const onboardingComplete = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE);
-
-          if (onboardingComplete === 'true') {
-            navigation.replace('MainTabs');
-          } else {
-            navigation.replace('ThemeSelection');
-          }
+          // Super Admin and Store Owner go to Paywall (must subscribe)
+          navigation.replace('Paywall');
         }
       } else {
         Alert.alert('Login Failed', result.error || 'Invalid email or password. Please try again.');
