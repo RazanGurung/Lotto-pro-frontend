@@ -340,6 +340,22 @@ export const authService = {
   logout: async (): Promise<void> => {
     await clearAuthData();
   },
+
+  /**
+   * Delete user account
+   */
+  deleteAccount: async (): Promise<ApiResponse<any>> => {
+    try {
+      return await apiRequest('/auth/profile', {
+        method: 'DELETE',
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || 'Failed to delete account',
+      };
+    }
+  },
 };
 
 // ==================== STORE SERVICE ====================
@@ -389,6 +405,22 @@ export const storeService = {
       return {
         success: false,
         error: error.message || 'Failed to update store',
+      };
+    }
+  },
+
+  /**
+   * Delete a store
+   */
+  deleteStore: async (storeId: number): Promise<ApiResponse<any>> => {
+    try {
+      return await apiRequest(`/stores/${storeId}`, {
+        method: 'DELETE',
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || 'Failed to delete store',
       };
     }
   },
@@ -691,6 +723,72 @@ export const ticketService = {
       return {
         success: false,
         error: error.message || 'Failed to fetch daily report',
+      };
+    }
+  },
+};
+
+// ==================== NOTIFICATION SERVICE ====================
+
+export const notificationService = {
+  /**
+   * Get all notifications for the authenticated user
+   */
+  getNotifications: async (): Promise<ApiResponse<any>> => {
+    try {
+      return await retryFetch(() => apiRequest('/notifications'));
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch notifications',
+      };
+    }
+  },
+
+  /**
+   * Mark a notification as read
+   */
+  markAsRead: async (notificationId: number): Promise<ApiResponse<any>> => {
+    try {
+      return await apiRequest(`/notifications/${notificationId}/read`, {
+        method: 'PUT',
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || 'Failed to mark notification as read',
+      };
+    }
+  },
+
+  /**
+   * Mark all notifications as read
+   */
+  markAllAsRead: async (): Promise<ApiResponse<any>> => {
+    try {
+      return await apiRequest('/notifications/read-all', {
+        method: 'PUT',
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || 'Failed to mark all notifications as read',
+      };
+    }
+  },
+
+  /**
+   * Delete a notification
+   */
+  deleteNotification: async (notificationId: number): Promise<ApiResponse<any>> => {
+    try {
+      return await apiRequest(`/notifications/${notificationId}`, {
+        method: 'DELETE',
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || 'Failed to delete notification',
       };
     }
   },

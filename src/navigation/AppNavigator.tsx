@@ -5,6 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useColorScheme, Text, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { notificationService } from '../services/api';
 import LoginScreen from '../screens/LoginScreen';
 import SignUpScreen from '../screens/SignUpScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
@@ -121,7 +122,7 @@ const Tab = createBottomTabNavigator();
 function MainTabNavigator() {
   const colorScheme = useColorScheme();
   const colors = colorScheme === 'dark' ? darkTheme : lightTheme;
-  const unreadCount = 3; // Mock unread count - replace with actual data from context/state
+  const [unreadCount, setUnreadCount] = useState(0);
   const [userType, setUserType] = useState<string | null>(null);
 
   useEffect(() => {
@@ -135,7 +136,25 @@ function MainTabNavigator() {
       console.log('====================');
     };
     getUserType();
+    fetchUnreadCount();
+
+    // Poll for unread count every 30 seconds
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
   }, []);
+
+  const fetchUnreadCount = async () => {
+    try {
+      const result = await notificationService.getNotifications();
+      if (result.success && result.data) {
+        const notificationsData = Array.isArray(result.data) ? result.data : result.data.notifications || [];
+        const unread = notificationsData.filter((n: any) => !n.read && !n.is_read).length;
+        setUnreadCount(unread);
+      }
+    } catch (error) {
+      console.error('Error fetching notification count:', error);
+    }
+  };
 
   // Show loading or default while determining user type
   if (!userType) {
@@ -146,6 +165,12 @@ function MainTabNavigator() {
 
   return (
     <Tab.Navigator
+      screenListeners={{
+        tabPress: () => {
+          // Refresh notification count when any tab is pressed
+          fetchUnreadCount();
+        },
+      }}
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: true,

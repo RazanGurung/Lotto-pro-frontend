@@ -40,8 +40,13 @@ export default function StoreListScreen({ navigation }: Props) {
 
   useEffect(() => {
     fetchOwnerName();
-    fetchStores();
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchStores();
+    }, [])
+  );
 
   const fetchOwnerName = async () => {
     try {

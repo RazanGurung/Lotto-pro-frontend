@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { authService } from '../services/api';
+import { STORAGE_KEYS } from '../config/env';
 
 type Props = {
   navigation: any;
@@ -16,9 +18,9 @@ export default function EditProfileScreen({ navigation }: Props) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [position, setPosition] = useState('');
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -39,7 +41,6 @@ export default function EditProfileScreen({ navigation }: Props) {
       setFullName(profileData.full_name || profileData.name || '');
       setEmail(profileData.email || '');
       setPhone(profileData.phone || '');
-      setPosition(profileData.position || '');
     } else {
       console.error('Profile Load Error:', result.error);
       Alert.alert('Error', result.error || 'Failed to load profile');
@@ -60,7 +61,6 @@ export default function EditProfileScreen({ navigation }: Props) {
       full_name: fullName.trim(),
       email: email.trim(),
       phone: phone.trim(),
-      position: position.trim(),
     });
 
     setLoading(false);
@@ -79,6 +79,55 @@ export default function EditProfileScreen({ navigation }: Props) {
     } else {
       Alert.alert('Error', result.error || 'Failed to update profile');
     }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently deleted.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeleting(true);
+            const result = await authService.deleteAccount();
+            setIsDeleting(false);
+
+            if (result.success) {
+              // Clear all stored data
+              await AsyncStorage.multiRemove([
+                STORAGE_KEYS.AUTH_TOKEN,
+                STORAGE_KEYS.USER_DATA,
+                STORAGE_KEYS.STORE_DATA,
+                STORAGE_KEYS.USER_TYPE,
+                STORAGE_KEYS.ONBOARDING_COMPLETE,
+              ]);
+
+              Alert.alert(
+                'Account Deleted',
+                'Your account has been successfully deleted.',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => navigation.reset({
+                      index: 0,
+                      routes: [{ name: 'Login' }],
+                    }),
+                  },
+                ]
+              );
+            } else {
+              Alert.alert('Error', result.error || 'Failed to delete account');
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (fetching) {
@@ -167,15 +216,9 @@ export default function EditProfileScreen({ navigation }: Props) {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Position</Text>
-            <View style={styles.inputContainer}>
+            <View style={styles.staticContainer}>
               <Ionicons name="briefcase-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                value={position}
-                onChangeText={setPosition}
-                placeholder="Enter your position"
-                placeholderTextColor={colors.textMuted}
-              />
+              <Text style={styles.staticText}>Owner</Text>
             </View>
           </View>
         </View>
@@ -184,9 +227,23 @@ export default function EditProfileScreen({ navigation }: Props) {
         <View style={styles.formSection}>
           <Text style={styles.sectionTitle}>Danger Zone</Text>
 
-          <TouchableOpacity style={styles.dangerItem} activeOpacity={0.7}>
-            <Ionicons name="trash-outline" size={22} color={colors.error} />
-            <Text style={styles.dangerText}>Delete Account</Text>
+          <TouchableOpacity
+            style={[styles.dangerItem, isDeleting && styles.dangerItemDisabled]}
+            activeOpacity={0.7}
+            onPress={handleDeleteAccount}
+            disabled={isDeleting}
+          >
+            {isDeleting ? (
+              <>
+                <ActivityIndicator size="small" color={colors.error} />
+                <Text style={styles.dangerText}>Deleting...</Text>
+              </>
+            ) : (
+              <>
+                <Ionicons name="trash-outline" size={22} color={colors.error} />
+                <Text style={styles.dangerText}>Delete Account</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -275,6 +332,17 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderColor: colors.border,
     paddingHorizontal: 15,
   },
+  staticContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 15,
+    paddingVertical: 14,
+    opacity: 0.7,
+  },
   inputIcon: {
     marginRight: 10,
   },
@@ -284,6 +352,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textPrimary,
     paddingVertical: 14,
   },
+  staticText: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
   dangerItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -292,6 +365,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.error + '30',
+  },
+  dangerItemDisabled: {
+    opacity: 0.6,
   },
   dangerText: {
     fontSize: 16,

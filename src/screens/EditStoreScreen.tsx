@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { storeService } from '../services/api';
 
 type Props = {
   navigation: any;
@@ -23,6 +24,7 @@ export default function EditStoreScreen({ navigation, route }: Props) {
   const [isEditingAccountNo, setIsEditingAccountNo] = useState(false);
   const [newLotteryPassword, setNewLotteryPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Format account number to show only last 4 digits
   const maskedAccountNumber = lotteryAccountNo
@@ -59,9 +61,30 @@ export default function EditStoreScreen({ navigation, route }: Props) {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert('Store Deleted', 'The store has been deleted successfully.');
-            navigation.goBack();
+          onPress: async () => {
+            if (!store?.id) {
+              Alert.alert('Error', 'Store ID not found');
+              return;
+            }
+
+            setIsDeleting(true);
+            const result = await storeService.deleteStore(store.id);
+            setIsDeleting(false);
+
+            if (result.success) {
+              Alert.alert(
+                'Success',
+                'Store deleted successfully',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => navigation.goBack(),
+                  },
+                ]
+              );
+            } else {
+              Alert.alert('Error', result.error || 'Failed to delete store');
+            }
           },
         },
       ]
@@ -215,9 +238,23 @@ export default function EditStoreScreen({ navigation, route }: Props) {
         <View style={styles.formSection}>
           <Text style={styles.sectionTitle}>Danger Zone</Text>
 
-          <TouchableOpacity style={styles.dangerItem} activeOpacity={0.7} onPress={handleDelete}>
-            <Ionicons name="trash-outline" size={22} color={colors.error} />
-            <Text style={styles.dangerText}>Delete Store</Text>
+          <TouchableOpacity
+            style={[styles.dangerItem, isDeleting && styles.dangerItemDisabled]}
+            activeOpacity={0.7}
+            onPress={handleDelete}
+            disabled={isDeleting}
+          >
+            {isDeleting ? (
+              <>
+                <ActivityIndicator size="small" color={colors.error} />
+                <Text style={styles.dangerText}>Deleting...</Text>
+              </>
+            ) : (
+              <>
+                <Ionicons name="trash-outline" size={22} color={colors.error} />
+                <Text style={styles.dangerText}>Delete Store</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -334,6 +371,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.error + '30',
+  },
+  dangerItemDisabled: {
+    opacity: 0.6,
   },
   dangerText: {
     fontSize: 16,
