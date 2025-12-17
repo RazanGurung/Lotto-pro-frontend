@@ -147,7 +147,8 @@ export default function CreateStoreScreen({ navigation }: Props) {
             placeholder="Enter store name"
             placeholderTextColor={colors.textMuted}
             value={storeName}
-            onChangeText={setStoreName}
+            onChangeText={(text) => setStoreName(text.toUpperCase())}
+            autoCapitalize="characters"
             editable={!loading}
           />
         </View>
@@ -159,7 +160,12 @@ export default function CreateStoreScreen({ navigation }: Props) {
             placeholder="123 Main Street"
             placeholderTextColor={colors.textMuted}
             value={address}
-            onChangeText={setAddress}
+            onChangeText={(text) => {
+              // Capitalize first letter of each word
+              const titleCase = text.replace(/\b\w/g, (char) => char.toUpperCase());
+              setAddress(titleCase);
+            }}
+            autoCapitalize="words"
             editable={!loading}
           />
         </View>
@@ -171,7 +177,12 @@ export default function CreateStoreScreen({ navigation }: Props) {
             placeholder="Enter city"
             placeholderTextColor={colors.textMuted}
             value={city}
-            onChangeText={setCity}
+            onChangeText={(text) => {
+              // Capitalize first letter of each word
+              const titleCase = text.replace(/\b\w/g, (char) => char.toUpperCase());
+              setCity(titleCase);
+            }}
+            autoCapitalize="words"
             editable={!loading}
           />
         </View>
@@ -198,7 +209,11 @@ export default function CreateStoreScreen({ navigation }: Props) {
               placeholder="12345"
               placeholderTextColor={colors.textMuted}
               value={zip}
-              onChangeText={setZip}
+              onChangeText={(text) => {
+                // Only allow numbers
+                const numbersOnly = text.replace(/[^0-9]/g, '');
+                setZip(numbersOnly);
+              }}
               keyboardType="number-pad"
               maxLength={5}
               editable={!loading}

@@ -115,9 +115,10 @@ export default function EditStoreScreen({ navigation, route }: Props) {
               <TextInput
                 style={styles.input}
                 value={storeName}
-                onChangeText={setStoreName}
+                onChangeText={(text) => setStoreName(text.toUpperCase())}
                 placeholder="Enter store name"
                 placeholderTextColor={colors.textMuted}
+                autoCapitalize="characters"
               />
             </View>
           </View>
@@ -129,9 +130,14 @@ export default function EditStoreScreen({ navigation, route }: Props) {
               <TextInput
                 style={styles.input}
                 value={address}
-                onChangeText={setAddress}
+                onChangeText={(text) => {
+                  // Capitalize first letter of each word
+                  const titleCase = text.replace(/\b\w/g, (char) => char.toUpperCase());
+                  setAddress(titleCase);
+                }}
                 placeholder="Enter street address"
                 placeholderTextColor={colors.textMuted}
+                autoCapitalize="words"
               />
             </View>
           </View>
@@ -143,9 +149,14 @@ export default function EditStoreScreen({ navigation, route }: Props) {
               <TextInput
                 style={styles.input}
                 value={city}
-                onChangeText={setCity}
+                onChangeText={(text) => {
+                  // Capitalize first letter of each word
+                  const titleCase = text.replace(/\b\w/g, (char) => char.toUpperCase());
+                  setCity(titleCase);
+                }}
                 placeholder="Enter city"
                 placeholderTextColor={colors.textMuted}
+                autoCapitalize="words"
               />
             </View>
           </View>
@@ -157,9 +168,11 @@ export default function EditStoreScreen({ navigation, route }: Props) {
               <TextInput
                 style={styles.input}
                 value={state}
-                onChangeText={setState}
+                onChangeText={(text) => setState(text.toUpperCase())}
                 placeholder="Enter state"
                 placeholderTextColor={colors.textMuted}
+                autoCapitalize="characters"
+                maxLength={2}
               />
             </View>
           </View>
@@ -171,10 +184,15 @@ export default function EditStoreScreen({ navigation, route }: Props) {
               <TextInput
                 style={styles.input}
                 value={zipcode}
-                onChangeText={setZipcode}
+                onChangeText={(text) => {
+                  // Only allow numbers
+                  const numbersOnly = text.replace(/[^0-9]/g, '');
+                  setZipcode(numbersOnly);
+                }}
                 placeholder="Enter zipcode"
                 placeholderTextColor={colors.textMuted}
-                keyboardType="numeric"
+                keyboardType="number-pad"
+                maxLength={5}
               />
             </View>
           </View>
