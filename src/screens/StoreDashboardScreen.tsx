@@ -11,16 +11,33 @@ type Props = {
   navigation: any;
 };
 
+interface TodayStats {
+  scans: number;
+  sales: number;
+  lowStock: number;
+}
+
 export default function StoreDashboardScreen({ navigation }: Props) {
   const colors = useTheme();
   const styles = createStyles(colors);
   const [storeName, setStoreName] = useState('');
   const [storeId, setStoreId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [todayStats, setTodayStats] = useState<TodayStats>({
+    scans: 0,
+    sales: 0,
+    lowStock: 0,
+  });
 
   useEffect(() => {
     loadStoreData();
   }, []);
+
+  useEffect(() => {
+    if (storeId) {
+      fetchTodayStats();
+    }
+  }, [storeId]);
 
   const loadStoreData = async () => {
     try {
@@ -51,6 +68,33 @@ export default function StoreDashboardScreen({ navigation }: Props) {
       console.error('Error loading store data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTodayStats = async () => {
+    try {
+      if (!storeId) return;
+
+      console.log('Fetching today stats for store:', storeId);
+      const result = await ticketService.getDailyReport(storeId);
+
+      if (result.success && result.data) {
+        const data = result.data;
+        console.log('Today report data:', data);
+
+        // Extract stats from report
+        const scans = data.breakdown?.length || 0;
+        const sales = data.total_revenue || 0;
+        const lowStock = 0; // TODO: Calculate from inventory
+
+        setTodayStats({
+          scans,
+          sales,
+          lowStock,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching today stats:', error);
     }
   };
 
@@ -94,15 +138,15 @@ export default function StoreDashboardScreen({ navigation }: Props) {
               <View style={[styles.statIconContainer, { backgroundColor: colors.primary + '20' }]}>
                 <Ionicons name="scan-outline" size={24} color={colors.primary} />
               </View>
-              <Text style={styles.statValue}>0</Text>
-              <Text style={styles.statLabel}>Scans</Text>
+              <Text style={styles.statValue}>{todayStats.scans}</Text>
+              <Text style={styles.statLabel}>Books Sold</Text>
             </View>
 
             <View style={styles.statCard}>
               <View style={[styles.statIconContainer, { backgroundColor: colors.success + '20' }]}>
                 <Ionicons name="cash-outline" size={24} color={colors.success} />
               </View>
-              <Text style={styles.statValue}>$0</Text>
+              <Text style={styles.statValue}>${todayStats.sales.toFixed(2)}</Text>
               <Text style={styles.statLabel}>Sales</Text>
             </View>
 
@@ -110,7 +154,7 @@ export default function StoreDashboardScreen({ navigation }: Props) {
               <View style={[styles.statIconContainer, { backgroundColor: colors.warning + '20' }]}>
                 <Ionicons name="alert-circle-outline" size={24} color={colors.warning} />
               </View>
-              <Text style={styles.statValue}>0</Text>
+              <Text style={styles.statValue}>{todayStats.lowStock}</Text>
               <Text style={styles.statLabel}>Low Stock</Text>
             </View>
           </View>
@@ -190,8 +234,14 @@ export default function StoreDashboardScreen({ navigation }: Props) {
             style={styles.actionCard}
             activeOpacity={0.7}
             onPress={() => {
-              // TODO: Navigate to Reports screen when implemented
-              console.log('Navigate to Reports');
+              if (storeId) {
+                navigation.navigate('PrintReport', {
+                  storeId: storeId.toString(),
+                  storeName: storeName,
+                });
+              } else {
+                Alert.alert('Error', 'Store information not available');
+              }
             }}
           >
             <View style={[styles.actionIconContainer, { backgroundColor: colors.info + '15' }]}>

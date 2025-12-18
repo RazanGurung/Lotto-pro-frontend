@@ -212,14 +212,18 @@ export default function StoreLotteryDashboardScreen({ navigation, route }: Props
       let inventoryResult;
 
       if (lotteryTypesData) {
-        // Cache hit - only fetch inventory
+        // Cache hit - only fetch inventory with limit to prevent OOM
         console.log('📦 Using cached lottery types, fetching inventory only');
-        inventoryResult = await ticketService.getStoreInventory(storeId);
+        inventoryResult = await ticketService.getStoreInventory(storeId, {
+          limit: 500 // Limit to 500 books to prevent memory issues
+        });
       } else {
         // Cache miss - fetch both in parallel
         console.log('📦 Cache miss, fetching both inventory and lottery types');
         const [invResult, lotteryTypesResult] = await Promise.all([
-          ticketService.getStoreInventory(storeId),
+          ticketService.getStoreInventory(storeId, {
+            limit: 500 // Limit to 500 books to prevent memory issues
+          }),
           lotteryService.getLotteryTypes(storeId)
         ]);
 

@@ -102,11 +102,112 @@ export const clearAuthData = async (): Promise<void> => {
   try {
     await Promise.all([
       AsyncStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN),
+      AsyncStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN),
+      AsyncStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRY),
       AsyncStorage.removeItem(STORAGE_KEYS.USER_DATA),
       AsyncStorage.removeItem(STORAGE_KEYS.USER_TYPE),
     ]);
   } catch (error) {
     // Silent fail on logout cleanup
+  }
+};
+
+/**
+ * Save auth tokens with expiry time
+ * @param token - Access token
+ * @param refreshToken - Refresh token (optional)
+ * @param expiresIn - Token expiry duration in seconds (default 24 hours)
+ */
+export const saveAuthTokens = async (
+  token: string,
+  refreshToken?: string,
+  expiresIn?: number
+): Promise<void> => {
+  try {
+    const expiryDuration = expiresIn || 86400; // Default 24 hours in seconds
+    const expiryTime = Date.now() + (expiryDuration * 1000); // Convert to milliseconds
+
+    await Promise.all([
+      AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token),
+      AsyncStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRY, expiryTime.toString()),
+      refreshToken ? AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken) : Promise.resolve(),
+    ]);
+  } catch (error) {
+    console.error('Error saving auth tokens:', error);
+  }
+};
+
+/**
+ * Check if the current token is expired or about to expire
+ * Returns true if token expires within the next 5 minutes
+ */
+const isTokenExpired = async (): Promise<boolean> => {
+  try {
+    const expiryTimeStr = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN_EXPIRY);
+    if (!expiryTimeStr) {
+      return true; // No expiry time means token is invalid
+    }
+
+    const expiryTime = parseInt(expiryTimeStr, 10);
+    const currentTime = Date.now();
+    const bufferTime = 5 * 60 * 1000; // 5 minutes buffer
+
+    return currentTime >= (expiryTime - bufferTime);
+  } catch (error) {
+    console.error('Error checking token expiry:', error);
+    return true; // On error, assume token is expired
+  }
+};
+
+/**
+ * Get refresh token from AsyncStorage
+ */
+const getRefreshToken = async (): Promise<string | null> => {
+  try {
+    return await AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+  } catch (error) {
+    return null;
+  }
+};
+
+/**
+ * Refresh the authentication token
+ */
+const refreshAuthToken = async (): Promise<boolean> => {
+  try {
+    const refreshToken = await getRefreshToken();
+    if (!refreshToken) {
+      return false;
+    }
+
+    const url = `${config.API_BASE_URL}/auth/refresh`;
+    const response = await fetchWithTimeout(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+
+    const result = await response.json();
+
+    if (response.ok && result.token) {
+      // Save new tokens
+      await saveAuthTokens(
+        result.token,
+        result.refresh_token || refreshToken, // Use new refresh token if provided
+        result.expires_in
+      );
+      return true;
+    }
+
+    // Refresh failed, clear auth data
+    await clearAuthData();
+    return false;
+  } catch (error) {
+    console.error('Error refreshing token:', error);
+    await clearAuthData();
+    return false;
   }
 };
 
@@ -161,12 +262,13 @@ const retryFetch = async <T>(
 };
 
 /**
- * Make authenticated API request
+ * Make authenticated API request with automatic token refresh
  */
 const apiRequest = async <T>(
   endpoint: string,
   options: RequestInit = {},
-  requiresAuth: boolean = true
+  requiresAuth: boolean = true,
+  isRetryAfterRefresh: boolean = false
 ): Promise<ApiResponse<T>> => {
   try {
     const headers: HeadersInit = {
@@ -176,6 +278,19 @@ const apiRequest = async <T>(
 
     // Add auth token if required
     if (requiresAuth) {
+      // Check if token is expired and refresh if needed
+      const tokenExpired = await isTokenExpired();
+      if (tokenExpired && !isRetryAfterRefresh) {
+        console.log('Token expired, attempting to refresh...');
+        const refreshed = await refreshAuthToken();
+
+        if (!refreshed) {
+          throw new AuthenticationError('Session expired. Please login again.');
+        }
+
+        console.log('Token refreshed successfully');
+      }
+
       const token = await getAuthToken();
       if (!token) {
         throw new AuthenticationError('No authentication token found. Please login again.');
@@ -195,7 +310,18 @@ const apiRequest = async <T>(
     // Handle HTTP error codes
     if (!response.ok) {
       if (response.status === 401) {
-        // Clear auth data on 401
+        // Try refreshing token once on 401
+        if (!isRetryAfterRefresh) {
+          console.log('Got 401, attempting token refresh...');
+          const refreshed = await refreshAuthToken();
+
+          if (refreshed) {
+            // Retry the request with new token
+            return await apiRequest<T>(endpoint, options, requiresAuth, true);
+          }
+        }
+
+        // Clear auth data and throw error
         await clearAuthData();
         throw new AuthenticationError(result.error || result.message || 'Session expired. Please login again.');
       }
@@ -578,11 +704,45 @@ export const ticketService = {
   },
 
   /**
-   * Get inventory for a store
+   * Get inventory for a store with pagination
+   * @param storeId - Store ID
+   * @param options - Pagination and filter options
    */
-  getStoreInventory: async (storeId: number): Promise<ApiResponse<any>> => {
+  getStoreInventory: async (
+    storeId: number,
+    options?: {
+      page?: number;
+      limit?: number;
+      lottery_id?: number;
+      status?: 'active' | 'inactive';
+    }
+  ): Promise<ApiResponse<any>> => {
     try {
-      const result = await retryFetch(() => apiRequest(`/lottery/store/${storeId}/inventory`));
+      // Build query string
+      let queryParams = '';
+      if (options) {
+        const queryParts: string[] = [];
+
+        if (options.page) {
+          queryParts.push(`page=${options.page}`);
+        }
+        if (options.limit) {
+          queryParts.push(`limit=${options.limit}`);
+        }
+        if (options.lottery_id) {
+          queryParts.push(`lottery_id=${options.lottery_id}`);
+        }
+        if (options.status) {
+          queryParts.push(`status=${options.status}`);
+        }
+
+        if (queryParts.length > 0) {
+          queryParams = '?' + queryParts.join('&');
+        }
+      }
+
+      const endpoint = `/lottery/store/${storeId}/inventory${queryParams}`;
+      const result = await retryFetch(() => apiRequest(endpoint));
       return result;
     } catch (error: any) {
       console.error('Inventory API Error:', error);
@@ -610,21 +770,69 @@ export const ticketService = {
   },
 
   /**
-   * Get daily report for a store
+   * Get daily report for a store with validation
    * Supports multiple query types:
    * - Today (default): no params
    * - Specific date: date=2025-12-15
    * - Last 7 days: range=last7
    * - This month: range=this_month
    * - Custom range: range=custom&start_date=2025-12-01&end_date=2025-12-15
+   *
+   * Maximum date range: 90 days to prevent server overload
    */
   getDailyReport: async (storeId: number, params?: {
     date?: string;
     range?: 'last7' | 'this_month' | 'custom';
     start_date?: string;
     end_date?: string;
+    page?: number;
+    limit?: number;
   }): Promise<ApiResponse<any>> => {
     try {
+      // Validate custom date range if provided
+      if (params?.range === 'custom' && params.start_date && params.end_date) {
+        const startDate = new Date(params.start_date);
+        const endDate = new Date(params.end_date);
+
+        // Check if dates are valid
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          return {
+            success: false,
+            error: 'Invalid date format. Please use YYYY-MM-DD format.',
+          };
+        }
+
+        // Check if start date is after end date
+        if (startDate > endDate) {
+          return {
+            success: false,
+            error: 'Start date cannot be after end date.',
+          };
+        }
+
+        // Check if dates are in the future
+        const now = new Date();
+        now.setHours(23, 59, 59, 999);
+        if (startDate > now || endDate > now) {
+          return {
+            success: false,
+            error: 'Report dates cannot be in the future.',
+          };
+        }
+
+        // Check date range doesn't exceed 90 days
+        const diffTime = endDate.getTime() - startDate.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const MAX_RANGE_DAYS = 90;
+
+        if (diffDays > MAX_RANGE_DAYS) {
+          return {
+            success: false,
+            error: `Date range cannot exceed ${MAX_RANGE_DAYS} days. Selected range: ${diffDays} days. Please select a shorter date range.`,
+          };
+        }
+      }
+
       // Build query string
       let queryParams = '';
       if (params) {
@@ -638,6 +846,15 @@ export const ticketService = {
             queryParts.push(`start_date=${params.start_date}`);
             queryParts.push(`end_date=${params.end_date}`);
           }
+        }
+
+        // Add pagination parameters
+        if (params.page) {
+          queryParts.push(`page=${params.page}`);
+        }
+        if (params.limit) {
+          const limit = Math.min(params.limit, 1000); // Cap at 1000 records
+          queryParts.push(`limit=${limit}`);
         }
 
         if (queryParts.length > 0) {

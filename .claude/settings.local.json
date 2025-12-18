@@ -5,7 +5,8 @@
       "Bash(npx expo install:*)",
       "Bash(npx tsc:*)",
       "Bash(find:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(npm install:*)"
     ],
     "deny": [],
     "ask": []

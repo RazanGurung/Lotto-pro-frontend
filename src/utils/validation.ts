@@ -201,3 +201,116 @@ export function validateLotteryPassword(password: string): ValidationResult {
 
   return { isValid: true };
 }
+
+/**
+ * Date validation
+ */
+export function validateDate(date: Date | string, fieldName: string = 'Date'): ValidationResult {
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+
+  if (isNaN(dateObj.getTime())) {
+    return { isValid: false, error: `${fieldName} is not a valid date` };
+  }
+
+  return { isValid: true };
+}
+
+/**
+ * Date range validation with maximum allowed range
+ */
+export function validateDateRange(
+  startDate: Date | string,
+  endDate: Date | string,
+  options?: {
+    maxDays?: number;
+    allowFuture?: boolean;
+    fieldNames?: { start?: string; end?: string };
+  }
+): ValidationResult {
+  const {
+    maxDays = 365, // Default: 1 year maximum
+    allowFuture = false,
+    fieldNames = { start: 'Start date', end: 'End date' }
+  } = options || {};
+
+  const startDateObj = typeof startDate === 'string' ? new Date(startDate) : startDate;
+  const endDateObj = typeof endDate === 'string' ? new Date(endDate) : endDate;
+  const now = new Date();
+  now.setHours(23, 59, 59, 999); // End of today
+
+  // Validate dates are valid
+  const startValidation = validateDate(startDateObj, fieldNames.start);
+  if (!startValidation.isValid) {
+    return startValidation;
+  }
+
+  const endValidation = validateDate(endDateObj, fieldNames.end);
+  if (!endValidation.isValid) {
+    return endValidation;
+  }
+
+  // Check if start date is after end date
+  if (startDateObj > endDateObj) {
+    return {
+      isValid: false,
+      error: `${fieldNames.start} cannot be after ${fieldNames.end}`
+    };
+  }
+
+  // Check if dates are in the future (if not allowed)
+  if (!allowFuture) {
+    if (startDateObj > now) {
+      return {
+        isValid: false,
+        error: `${fieldNames.start} cannot be in the future`
+      };
+    }
+    if (endDateObj > now) {
+      return {
+        isValid: false,
+        error: `${fieldNames.end} cannot be in the future`
+      };
+    }
+  }
+
+  // Check if date range exceeds maximum
+  const diffTime = endDateObj.getTime() - startDateObj.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays > maxDays) {
+    return {
+      isValid: false,
+      error: `Date range cannot exceed ${maxDays} days. Selected range: ${diffDays} days`
+    };
+  }
+
+  return { isValid: true };
+}
+
+/**
+ * Pagination parameters validation
+ */
+export function validatePaginationParams(
+  page: number,
+  limit: number,
+  options?: {
+    maxLimit?: number;
+    minLimit?: number;
+  }
+): ValidationResult {
+  const { maxLimit = 100, minLimit = 1 } = options || {};
+
+  if (!Number.isInteger(page) || page < 1) {
+    return { isValid: false, error: 'Page must be a positive integer' };
+  }
+
+  if (!Number.isInteger(limit) || limit < minLimit) {
+    return { isValid: false, error: `Limit must be at least ${minLimit}` };
+  }
+
+  if (limit > maxLimit) {
+    return { isValid: false, error: `Limit cannot exceed ${maxLimit} items` };
+  }
+
+  return { isValid: true };
+}

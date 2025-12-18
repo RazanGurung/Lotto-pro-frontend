@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, StatusBar, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, StatusBar, ActivityIndicator, KeyboardAvoidingView, Platform, Switch, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
 import { storeService } from '../services/api';
@@ -26,6 +27,9 @@ export default function CreateStoreScreen({ navigation }: Props) {
   const [lotteryPassword, setLotteryPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState<number | null>(null);
+  const [is24Hour, setIs24Hour] = useState(false);
+  const [closingTime, setClosingTime] = useState(new Date(new Date().setHours(23, 59, 0, 0)));
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   useEffect(() => {
     loadUserData();
@@ -76,6 +80,9 @@ export default function CreateStoreScreen({ navigation }: Props) {
 
     setLoading(true);
 
+    const closingHour = closingTime.getHours();
+    const closingMinute = closingTime.getMinutes();
+
     const result = await storeService.createStore({
       owner_id: userId,
       store_name: storeName.trim(),
@@ -85,6 +92,9 @@ export default function CreateStoreScreen({ navigation }: Props) {
       zipcode: zip.trim() || undefined,
       lottery_ac_no: lotteryAccountNumber.trim(),
       lottery_pw: lotteryPassword.trim(),
+      is_24_hour: is24Hour,
+      closing_hour: is24Hour ? null : closingHour,
+      closing_minute: is24Hour ? null : closingMinute,
     });
 
     setLoading(false);
@@ -222,6 +232,48 @@ export default function CreateStoreScreen({ navigation }: Props) {
         </View>
 
         <View style={styles.divider} />
+        <Text style={styles.sectionTitle}>Store Hours</Text>
+
+        <View style={styles.switchContainer}>
+          <View style={styles.switchLabelContainer}>
+            <Text style={styles.switchLabel}>24-Hour Store</Text>
+            <Text style={styles.switchSubLabel}>
+              {is24Hour ? 'Store operates 24 hours a day' : 'Store has specific closing time'}
+            </Text>
+          </View>
+          <Switch
+            value={is24Hour}
+            onValueChange={setIs24Hour}
+            trackColor={{ false: colors.border, true: colors.primary + '60' }}
+            thumbColor={is24Hour ? colors.primary : colors.surface}
+            disabled={loading}
+          />
+        </View>
+
+        {!is24Hour && (
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Store Closing Time</Text>
+            <TouchableOpacity
+              style={styles.timePickerButton}
+              onPress={() => setShowTimePicker(true)}
+              disabled={loading}
+            >
+              <Text style={styles.timePickerText}>
+                {closingTime.toLocaleTimeString('en-US', {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  hour12: true,
+                })}
+              </Text>
+              <Text style={styles.timePickerIcon}>🕐</Text>
+            </TouchableOpacity>
+            <Text style={styles.helperText}>
+              Report period will be from closing time to closing time (next day)
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.divider} />
         <Text style={styles.sectionTitle}>Lottery Account Credentials</Text>
 
         <View style={styles.inputGroup}>
@@ -283,6 +335,57 @@ export default function CreateStoreScreen({ navigation }: Props) {
         </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Time Picker Modal */}
+      {showTimePicker && Platform.OS === 'ios' && (
+        <Modal
+          visible={showTimePicker}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowTimePicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.timePickerContainer}>
+              <View style={styles.timePickerHeader}>
+                <TouchableOpacity onPress={() => setShowTimePicker(false)}>
+                  <Text style={styles.timePickerCancelButton}>Cancel</Text>
+                </TouchableOpacity>
+                <Text style={styles.timePickerTitle}>Select Closing Time</Text>
+                <TouchableOpacity onPress={() => setShowTimePicker(false)}>
+                  <Text style={styles.timePickerDoneButton}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                value={closingTime}
+                mode="time"
+                display="spinner"
+                onChange={(event, selectedTime) => {
+                  if (selectedTime) {
+                    setClosingTime(selectedTime);
+                  }
+                }}
+                textColor={colors.textPrimary}
+                style={styles.timePicker}
+              />
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Android Time Picker */}
+      {showTimePicker && Platform.OS === 'android' && (
+        <DateTimePicker
+          value={closingTime}
+          mode="time"
+          display="default"
+          onChange={(event, selectedTime) => {
+            setShowTimePicker(false);
+            if (event.type === 'set' && selectedTime) {
+              setClosingTime(selectedTime);
+            }
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -409,5 +512,92 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 16,
     fontWeight: '600',
+  },
+  switchContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 20,
+  },
+  switchLabelContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  switchLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  switchSubLabel: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  timePickerButton: {
+    backgroundColor: colors.surface,
+    padding: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  timePickerText: {
+    fontSize: 16,
+    color: colors.textPrimary,
+    fontWeight: '500',
+  },
+  timePickerIcon: {
+    fontSize: 20,
+  },
+  helperText: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 6,
+    fontStyle: 'italic',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  timePickerContainer: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40,
+  },
+  timePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  timePickerTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  timePickerCancelButton: {
+    fontSize: 16,
+    color: colors.error,
+    fontWeight: '600',
+  },
+  timePickerDoneButton: {
+    fontSize: 16,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  timePicker: {
+    width: '100%',
+    height: 200,
   },
 });

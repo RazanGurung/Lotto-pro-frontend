@@ -4,7 +4,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
-import { authService } from '../services/api';
+import { authService, saveAuthTokens } from '../services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { STORAGE_KEYS } from '../config/env';
 import { validateEmail, validateRequired } from '../utils/validation';
@@ -49,9 +49,13 @@ export default function LoginScreen({ navigation }: Props) {
       });
 
       if (result.success && result.data) {
-        // Store authentication token and user data
+        // Store authentication token with expiry and refresh token
         if (result.data.token) {
-          await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, result.data.token);
+          await saveAuthTokens(
+            result.data.token,
+            result.data.refresh_token,
+            result.data.expires_in
+          );
         }
 
         if (result.data.user) {

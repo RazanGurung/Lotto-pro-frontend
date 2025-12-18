@@ -45,6 +45,8 @@ export const isProduction = ENV === 'production';
 // Storage keys (centralized for consistency)
 export const STORAGE_KEYS = {
   AUTH_TOKEN: '@auth_token',
+  REFRESH_TOKEN: '@refresh_token',
+  TOKEN_EXPIRY: '@token_expiry',
   USER_DATA: '@user_data',
   STORE_DATA: '@store_data',
   USER_TYPE: '@user_type',
