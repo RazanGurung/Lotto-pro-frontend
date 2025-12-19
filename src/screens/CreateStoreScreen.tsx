@@ -81,7 +81,7 @@ export default function CreateStoreScreen({ navigation }: Props) {
     setLoading(true);
 
     const closingHour = closingTime.getHours();
-    const closingMinute = closingTime.getMinutes();
+    const formattedClosingTime = `${closingHour.toString().padStart(2, '0')}:00:00`;
 
     const result = await storeService.createStore({
       owner_id: userId,
@@ -92,9 +92,8 @@ export default function CreateStoreScreen({ navigation }: Props) {
       zipcode: zip.trim() || undefined,
       lottery_ac_no: lotteryAccountNumber.trim(),
       lottery_pw: lotteryPassword.trim(),
-      is_24_hour: is24Hour,
-      closing_hour: is24Hour ? null : closingHour,
-      closing_minute: is24Hour ? null : closingMinute,
+      is_24_hours: is24Hour ? 1 : 0,
+      closing_time: formattedClosingTime,
     });
 
     setLoading(false);

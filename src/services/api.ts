@@ -36,6 +36,8 @@ interface StoreData {
   zipcode?: string;
   lottery_ac_no: string;
   lottery_pw: string;
+  is_24_hours: number;
+  closing_time: string;
 }
 
 interface ProfileData {
@@ -72,6 +74,22 @@ interface TicketData {
   barcode_raw: string;
   scanned_at: string;
   price?: number;
+}
+
+export interface NotificationSettings {
+  id?: number;
+  store_id?: number;
+  push_notifications: boolean;
+  email_notifications: boolean;
+  sms_notifications: boolean;
+  low_stock_alerts: boolean;
+  sales_updates: boolean;
+  inventory_alerts: boolean;
+  system_updates: boolean;
+  weekly_reports: boolean;
+  daily_summary: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ApiResponse<T> {
@@ -880,10 +898,34 @@ export const ticketService = {
 export const notificationService = {
   /**
    * Get all notifications for the authenticated user
+   * @param options - Optional query parameters
+   * @param options.limit - Limit number of notifications returned
+   * @param options.unread - Filter for unread notifications only
    */
-  getNotifications: async (): Promise<ApiResponse<any>> => {
+  getNotifications: async (options?: {
+    limit?: number;
+    unread?: boolean;
+  }): Promise<ApiResponse<any>> => {
     try {
-      return await retryFetch(() => apiRequest('/notifications'));
+      // Build query string
+      let queryParams = '';
+      if (options) {
+        const queryParts: string[] = [];
+
+        if (options.limit) {
+          queryParts.push(`limit=${options.limit}`);
+        }
+        if (options.unread !== undefined) {
+          queryParts.push(`unread=${options.unread}`);
+        }
+
+        if (queryParts.length > 0) {
+          queryParams = '?' + queryParts.join('&');
+        }
+      }
+
+      const endpoint = `/notifications${queryParams}`;
+      return await retryFetch(() => apiRequest(endpoint));
     } catch (error: any) {
       return {
         success: false,
@@ -898,7 +940,7 @@ export const notificationService = {
   markAsRead: async (notificationId: number): Promise<ApiResponse<any>> => {
     try {
       return await apiRequest(`/notifications/${notificationId}/read`, {
-        method: 'PUT',
+        method: 'PATCH',
       });
     } catch (error: any) {
       return {
@@ -913,8 +955,8 @@ export const notificationService = {
    */
   markAllAsRead: async (): Promise<ApiResponse<any>> => {
     try {
-      return await apiRequest('/notifications/read-all', {
-        method: 'PUT',
+      return await apiRequest('/notifications/mark-all-read', {
+        method: 'POST',
       });
     } catch (error: any) {
       return {
@@ -936,6 +978,43 @@ export const notificationService = {
       return {
         success: false,
         error: error.message || 'Failed to delete notification',
+      };
+    }
+  },
+
+  /**
+   * Get notification settings for a store
+   * @param storeId - Store ID
+   */
+  getNotificationSettings: async (storeId: number): Promise<ApiResponse<any>> => {
+    try {
+      return await retryFetch(() => apiRequest(`/settings/store/${storeId}/notifications`));
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch notification settings',
+      };
+    }
+  },
+
+  /**
+   * Update notification settings for a store (store owner only)
+   * @param storeId - Store ID
+   * @param settings - Notification settings to update
+   */
+  updateNotificationSettings: async (
+    storeId: number,
+    settings: Partial<NotificationSettings>
+  ): Promise<ApiResponse<any>> => {
+    try {
+      return await apiRequest(`/settings/store/${storeId}/notifications`, {
+        method: 'PUT',
+        body: JSON.stringify(settings),
+      });
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || 'Failed to update notification settings',
       };
     }
   },
