@@ -38,6 +38,7 @@ import EditLotteryGameScreen from '../screens/EditLotteryGameScreen';
 import LotteryGameDetailScreen from '../screens/LotteryGameDetailScreen';
 import StoreLotteryDashboardScreen from '../screens/StoreLotteryDashboardScreen';
 import StoreLotteryGameDetailScreen from '../screens/StoreLotteryGameDetailScreen';
+import BrowseAvailableLotteriesScreen from '../screens/BrowseAvailableLotteriesScreen';
 import PaywallScreen from '../screens/PaywallScreen';
 import { lightTheme, darkTheme } from '../styles/colors';
 
@@ -96,6 +97,11 @@ export type RootStackParamList = {
     storeName: string;
     state: string;
   };
+  BrowseAvailableLotteries: {
+    storeId: string;
+    storeName: string;
+    state: string;
+  };
   LotteryDetail: {
     lottery: ScratchOffLottery;
   };
@@ -106,6 +112,7 @@ export type RootStackParamList = {
   ScanTicket: {
     storeId: string;
     storeName: string;
+    scanMode?: 'inventory' | 'dayClose';
   };
   StoreLotteryDashboard: {
     storeId: number;
@@ -393,6 +400,10 @@ export default function AppNavigator() {
         <Stack.Screen
           name="Dashboard"
           component={DashboardScreen}
+        />
+        <Stack.Screen
+          name="BrowseAvailableLotteries"
+          component={BrowseAvailableLotteriesScreen}
         />
         <Stack.Screen
           name="LotteryDetail"

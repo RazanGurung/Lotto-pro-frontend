@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useTheme } from '../contexts/ThemeContext';
 import { ticketService } from '../services/api';
+import ScanTypeSelectionModal from '../components/ScanTypeSelectionModal';
 
 type StoreLotteryGameDetailScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'StoreLotteryGameDetail'>;
 type StoreLotteryGameDetailScreenRouteProp = RouteProp<RootStackParamList, 'StoreLotteryGameDetail'>;
@@ -25,6 +27,7 @@ export default function StoreLotteryGameDetailScreen({ navigation, route }: Prop
   const [inventoryCount, setInventoryCount] = useState(0);
   const [bookCount, setBookCount] = useState(0);
   const [books, setBooks] = useState<any[]>([]);
+  const [showScanModal, setShowScanModal] = useState(false);
 
   useEffect(() => {
     fetchInventory();
@@ -95,7 +98,12 @@ export default function StoreLotteryGameDetailScreen({ navigation, route }: Prop
   // Determine stock status
   let stockInfo;
   if (inventoryCount === 0) {
-    stockInfo = { status: 'none', color: colors.error, label: 'No Stock', icon: 'close-circle' };
+    // Different icon and color if not assigned vs just no stock
+    if (!isAssignedToStore) {
+      stockInfo = { status: 'not-added', color: colors.info, label: 'Not in Store', icon: 'add-circle-outline' };
+    } else {
+      stockInfo = { status: 'none', color: colors.error, label: 'No Stock', icon: 'close-circle' };
+    }
   } else if (stockPercentage <= 20) {
     stockInfo = { status: 'low', color: colors.warning, label: 'Low Stock', icon: 'alert-circle' };
   } else if (stockPercentage <= 50) {
@@ -120,21 +128,41 @@ export default function StoreLotteryGameDetailScreen({ navigation, route }: Prop
 
       <View style={styles.contentWrapper}>
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Game Image */}
+        {/* Game Image - Blurred Background with Centered Square */}
         <View style={styles.imageContainer}>
           {game.image_url ? (
-            <Image source={{ uri: game.image_url }} style={styles.gameImage} resizeMode="contain" />
+            <>
+              {/* Blurred Background */}
+              <ImageBackground
+                source={{ uri: game.image_url }}
+                style={styles.imageBackground}
+                resizeMode="cover"
+                blurRadius={20}
+              >
+                {/* Dark Overlay */}
+                <View style={styles.imageOverlay} />
+              </ImageBackground>
+
+              {/* Centered Square Image */}
+              <View style={styles.centeredImageContainer}>
+                <Image
+                  source={{ uri: game.image_url }}
+                  style={styles.centeredSquareImage}
+                  resizeMode="cover"
+                />
+              </View>
+            </>
           ) : (
             <View style={[styles.imagePlaceholder, { backgroundColor: colors.backgroundDark }]}>
-              <Ionicons name="ticket" size={80} color={colors.textMuted} />
+              <Ionicons name="ticket" size={60} color={colors.textMuted} />
             </View>
           )}
 
           {/* Activation Status Badge */}
           {!isAssignedToStore && (
-            <View style={styles.notAssignedBadge}>
-              <Ionicons name="lock-closed" size={16} color={colors.white} />
-              <Text style={styles.notAssignedText}>NOT ACTIVATED</Text>
+            <View style={styles.availableBadge}>
+              <Ionicons name="add-circle" size={16} color={colors.white} />
+              <Text style={styles.availableBadgeText}>AVAILABLE TO ADD</Text>
             </View>
           )}
         </View>
@@ -167,15 +195,19 @@ export default function StoreLotteryGameDetailScreen({ navigation, route }: Prop
               <>
                 <View style={styles.inventoryCard}>
                   <View style={[styles.inventoryIconContainer, { backgroundColor: stockInfo.color + '15' }]}>
-                    <Ionicons name={stockInfo.icon} size={32} color={stockInfo.color} />
+                    <Ionicons name={stockInfo.icon} size={28} color={stockInfo.color} />
                   </View>
                   <View style={styles.inventoryInfo}>
                     <Text style={styles.inventoryCount}>{inventoryCount}</Text>
-                    <Text style={styles.inventoryLabel}>Total Tickets in Stock</Text>
+                    <Text style={styles.inventoryLabel}>
+                      {!isAssignedToStore ? 'Not in your store' : 'Total Tickets in Stock'}
+                    </Text>
                     {bookCount > 0 && (
                       <Text style={styles.inventoryBooks}>{bookCount} {bookCount === 1 ? 'Book' : 'Books'}</Text>
                     )}
-                    <Text style={[styles.inventoryStatus, { color: stockInfo.color }]}>{stockInfo.label}</Text>
+                    <Text style={[styles.inventoryStatus, { color: stockInfo.color }]}>
+                      {!isAssignedToStore ? 'Scan to add this lottery' : stockInfo.label}
+                    </Text>
                   </View>
                 </View>
 
@@ -254,38 +286,38 @@ export default function StoreLotteryGameDetailScreen({ navigation, route }: Prop
           {/* Divider */}
           <View style={styles.divider} />
 
-          {/* Game Details Grid */}
-          <View style={styles.detailsGrid}>
-            <View style={styles.detailBox}>
-              <View style={[styles.detailIconContainer, { backgroundColor: colors.warning + '15' }]}>
-                <Ionicons name="receipt" size={24} color={colors.warning} />
+          {/* Game Details - Simplified */}
+          <View style={styles.detailsList}>
+            <View style={styles.detailRow}>
+              <View style={styles.detailRowLeft}>
+                <Ionicons name="receipt" size={18} color={colors.warning} />
+                <Text style={styles.detailRowLabel}>Ticket Range</Text>
               </View>
-              <Text style={styles.detailLabel}>Ticket Range</Text>
-              <Text style={styles.detailValue}>{game.start_number}-{game.end_number}</Text>
+              <Text style={styles.detailRowValue}>{game.start_number}-{game.end_number}</Text>
             </View>
 
-            <View style={styles.detailBox}>
-              <View style={[styles.detailIconContainer, { backgroundColor: colors.info + '15' }]}>
-                <Ionicons name="calculator" size={24} color={colors.info} />
+            <View style={styles.detailRow}>
+              <View style={styles.detailRowLeft}>
+                <Ionicons name="calculator" size={18} color={colors.info} />
+                <Text style={styles.detailRowLabel}>Total Tickets</Text>
               </View>
-              <Text style={styles.detailLabel}>Total Tickets</Text>
-              <Text style={styles.detailValue}>{totalTickets.toLocaleString()}</Text>
+              <Text style={styles.detailRowValue}>{totalTickets.toLocaleString()}</Text>
             </View>
 
-            <View style={styles.detailBox}>
-              <View style={[styles.detailIconContainer, { backgroundColor: colors.success + '15' }]}>
-                <Ionicons name="location" size={24} color={colors.success} />
+            <View style={styles.detailRow}>
+              <View style={styles.detailRowLeft}>
+                <Ionicons name="location" size={18} color={colors.success} />
+                <Text style={styles.detailRowLabel}>State</Text>
               </View>
-              <Text style={styles.detailLabel}>State</Text>
-              <Text style={styles.detailValue}>{game.state}</Text>
+              <Text style={styles.detailRowValue}>{game.state}</Text>
             </View>
 
-            <View style={styles.detailBox}>
-              <View style={[styles.detailIconContainer, { backgroundColor: colors.primary + '15' }]}>
-                <Ionicons name="calendar" size={24} color={colors.primary} />
+            <View style={[styles.detailRow, { borderBottomWidth: 0 }]}>
+              <View style={styles.detailRowLeft}>
+                <Ionicons name="calendar" size={18} color={colors.primary} />
+                <Text style={styles.detailRowLabel}>Launch Date</Text>
               </View>
-              <Text style={styles.detailLabel}>Launch Date</Text>
-              <Text style={styles.detailValue}>
+              <Text style={styles.detailRowValue}>
                 {game.launch_date
                   ? new Date(game.launch_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                   : 'Not Set'}
@@ -332,21 +364,44 @@ export default function StoreLotteryGameDetailScreen({ navigation, route }: Prop
           </View>
         </View>
 
-        <View style={styles.bottomPadding} />
+        <View style={!isAssignedToStore ? styles.bottomPaddingWithButton : styles.bottomPadding} />
       </ScrollView>
 
-      {/* NOT ACTIVATED Overlay - Shows when lottery is not activated for this store */}
+      {/* Add to Store Button - Shows when lottery is not activated */}
       {!isAssignedToStore && (
-        <View style={styles.notAssignedOverlay}>
-          <View style={styles.notAssignedOverlayBadge}>
-            <Ionicons name="lock-closed" size={28} color={colors.white} />
-            <Text style={styles.notAssignedOverlayText}>NOT ACTIVATED</Text>
-            <Text style={styles.notAssignedOverlaySubtext}>
-              You do not stock this lottery game at your store
-            </Text>
-          </View>
+        <View style={styles.actionButtonContainer}>
+          <TouchableOpacity
+            style={styles.addToStoreButton}
+            onPress={() => setShowScanModal(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="scan" size={24} color={colors.white} />
+            <Text style={styles.addToStoreButtonText}>Scan to Add This Lottery</Text>
+          </TouchableOpacity>
         </View>
       )}
+
+      {/* Scan Type Selection Modal */}
+      <ScanTypeSelectionModal
+        visible={showScanModal}
+        onClose={() => setShowScanModal(false)}
+        onSelectInventoryScan={() => {
+          setShowScanModal(false);
+          navigation.navigate('ScanTicket', {
+            storeId,
+            storeName,
+            scanMode: 'inventory'
+          });
+        }}
+        onSelectDayCloseScan={() => {
+          setShowScanModal(false);
+          navigation.navigate('ScanTicket', {
+            storeId,
+            storeName,
+            scanMode: 'dayClose'
+          });
+        }}
+      />
       </View>
     </SafeAreaView>
   );
@@ -399,11 +454,38 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   imageContainer: {
     width: '100%',
-    aspectRatio: 1,
+    aspectRatio: 16 / 9,
     backgroundColor: colors.backgroundDark,
     position: 'relative',
+    overflow: 'hidden',
   },
-  gameImage: {
+  imageBackground: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+  },
+  imageOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  },
+  centeredImageContainer: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -80 }, { translateY: -80 }],
+    width: 160,
+    height: 160,
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 8,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    borderWidth: 3,
+    borderColor: colors.white,
+  },
+  centeredSquareImage: {
     width: '100%',
     height: '100%',
   },
@@ -413,21 +495,24 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  notAssignedBadge: {
+  availableBadge: {
     position: 'absolute',
     top: 16,
     right: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: colors.primary,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    elevation: 4,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
-  notAssignedText: {
+  availableBadgeText: {
     color: colors.white,
     fontSize: 11,
     fontWeight: 'bold',
@@ -436,8 +521,8 @@ const createStyles = (colors: any) => StyleSheet.create({
   infoCard: {
     backgroundColor: colors.surface,
     marginHorizontal: 15,
-    marginTop: 15,
-    padding: 20,
+    marginTop: 12,
+    padding: 16,
     borderRadius: 12,
     elevation: 2,
     shadowColor: colors.black,
@@ -447,7 +532,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   titleSection: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
   },
   gameName: {
     fontSize: 24,
@@ -479,15 +564,15 @@ const createStyles = (colors: any) => StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: colors.border,
-    marginVertical: 20,
+    marginVertical: 12,
   },
   inventorySection: {
-    marginBottom: 20,
+    marginBottom: 12,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 16,
@@ -502,23 +587,23 @@ const createStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.backgroundDark,
-    padding: 16,
+    padding: 12,
     borderRadius: 12,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   inventoryIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: 12,
   },
   inventoryInfo: {
     flex: 1,
   },
   inventoryCount: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: colors.textPrimary,
   },
@@ -539,7 +624,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginTop: 4,
   },
   booksListContainer: {
-    marginTop: 16,
+    marginTop: 12,
   },
   booksListTitle: {
     fontSize: 14,
@@ -549,16 +634,16 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   bookItem: {
     backgroundColor: colors.background,
-    padding: 14,
+    padding: 12,
     borderRadius: 10,
-    marginBottom: 12,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: colors.border,
   },
   bookHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   bookIconBadge: {
     width: 32,
@@ -645,36 +730,30 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginTop: 6,
     textAlign: 'center',
   },
-  detailsGrid: {
+  detailsList: {
+    gap: 0,
+  },
+  detailRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -8,
-  },
-  detailBox: {
-    width: '50%',
-    padding: 8,
-    marginBottom: 16,
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  detailIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
+  detailRowLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    gap: 10,
   },
-  detailLabel: {
-    fontSize: 12,
+  detailRowLabel: {
+    fontSize: 14,
     color: colors.textSecondary,
-    marginBottom: 4,
-    textAlign: 'center',
   },
-  detailValue: {
+  detailRowValue: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.textPrimary,
-    textAlign: 'center',
   },
   infoRow: {
     flexDirection: 'row',
@@ -705,42 +784,43 @@ const createStyles = (colors: any) => StyleSheet.create({
   bottomPadding: {
     height: 30,
   },
-  notAssignedOverlay: {
+  bottomPaddingWithButton: {
+    height: 100,
+  },
+  actionButtonContainer: {
     position: 'absolute',
-    top: 0,
+    bottom: 0,
     left: 0,
     right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: colors.background,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    elevation: 8,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  addToStoreButton: {
+    backgroundColor: colors.accent,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-    pointerEvents: 'none', // Allow touch events to pass through to scroll view
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 10,
+    elevation: 4,
+    shadowColor: colors.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
-  notAssignedOverlayBadge: {
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
-    paddingHorizontal: 32,
-    paddingVertical: 24,
-    borderRadius: 16,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    maxWidth: '80%',
-    pointerEvents: 'auto', // Keep badge itself clickable (but no buttons inside)
-  },
-  notAssignedOverlayText: {
+  addToStoreButtonText: {
     color: colors.white,
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
-    letterSpacing: 1.5,
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  notAssignedOverlaySubtext: {
-    color: colors.white,
-    fontSize: 14,
-    opacity: 0.9,
-    textAlign: 'center',
-    lineHeight: 20,
+    letterSpacing: 0.5,
   },
 });

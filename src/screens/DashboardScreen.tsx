@@ -8,6 +8,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { lotteryService, ticketService } from '../services/api';
 import { useFocusEffect } from '@react-navigation/native';
+import ScanTypeSelectionModal from '../components/ScanTypeSelectionModal';
 
 type DashboardScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
 type DashboardScreenRouteProp = RouteProp<RootStackParamList, 'Dashboard'>;
@@ -64,6 +65,7 @@ export default function DashboardScreen({ route, navigation }: Props) {
   const [inventoryCounts, setInventoryCounts] = useState<InventoryCount>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showScanModal, setShowScanModal] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -240,7 +242,10 @@ export default function DashboardScreen({ route, navigation }: Props) {
     });
   };
 
-  const filteredLotteries = lotteries.filter(lottery =>
+  // Filter to only show activated lotteries (ones with inventory assigned to the store)
+  const activatedLotteries = lotteries.filter(lottery => lottery.is_assigned === true);
+
+  const filteredLotteries = activatedLotteries.filter(lottery =>
     lottery.lottery_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     lottery.price.toString().includes(searchQuery)
   );
@@ -403,11 +408,35 @@ export default function DashboardScreen({ route, navigation }: Props) {
           )}
         </View>
 
+        {/* Browse Available Lotteries Banner */}
+        <TouchableOpacity
+          style={styles.browseBanner}
+          onPress={() => navigation.navigate('BrowseAvailableLotteries', {
+            storeId,
+            storeName,
+            state
+          })}
+          activeOpacity={0.7}
+        >
+          <View style={styles.browseBannerContent}>
+            <View style={styles.browseBannerLeft}>
+              <Ionicons name="apps-outline" size={20} color={colors.primary} />
+              <View style={styles.browseBannerTextContainer}>
+                <Text style={styles.browseBannerTitle}>Browse All Available Lotteries</Text>
+                <Text style={styles.browseBannerSubtitle}>
+                  {lotteries.filter(l => !l.is_assigned).length} lotteries available from department
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+          </View>
+        </TouchableOpacity>
+
         {/* Stats Summary */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{lotteries.length}</Text>
-            <Text style={styles.statLabel}>Total Items</Text>
+            <Text style={styles.statNumber}>{activatedLotteries.length}</Text>
+            <Text style={styles.statLabel}>Activated</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
@@ -417,8 +446,8 @@ export default function DashboardScreen({ route, navigation }: Props) {
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>
-              {lotteries.filter(l => {
-                const stock = inventoryCounts[l.lottery_number] || 0;
+              {activatedLotteries.filter(l => {
+                const stock = l.inventory_count || 0;
                 return stock === 0;
               }).length}
             </Text>
@@ -428,9 +457,9 @@ export default function DashboardScreen({ route, navigation }: Props) {
 
         {/* Info Banner */}
         <View style={styles.infoBanner}>
-          <Ionicons name="information-circle" size={16} color={colors.primary} />
+          <Ionicons name="checkmark-circle" size={16} color={colors.success} />
           <Text style={styles.infoBannerText}>
-            {lotteries.filter(l => l.is_assigned).length} activated • {lotteries.filter(l => !l.is_assigned).length} not activated
+            Showing {activatedLotteries.length} activated lottery games in your store
           </Text>
         </View>
       </View>
@@ -477,12 +506,34 @@ export default function DashboardScreen({ route, navigation }: Props) {
       {/* Fixed Floating Scan Button */}
       <TouchableOpacity
         style={styles.scanButton}
-        onPress={() => navigation.navigate('ScanTicket', { storeId: route.params.storeId, storeName })}
+        onPress={() => setShowScanModal(true)}
         activeOpacity={0.8}
       >
         <Ionicons name="scan" size={28} color={colors.white} />
         <Text style={styles.scanButtonLabel}>Scan</Text>
       </TouchableOpacity>
+
+      {/* Scan Type Selection Modal */}
+      <ScanTypeSelectionModal
+        visible={showScanModal}
+        onClose={() => setShowScanModal(false)}
+        onSelectInventoryScan={() => {
+          setShowScanModal(false);
+          navigation.navigate('ScanTicket', {
+            storeId: route.params.storeId,
+            storeName,
+            scanMode: 'inventory'
+          });
+        }}
+        onSelectDayCloseScan={() => {
+          setShowScanModal(false);
+          navigation.navigate('ScanTicket', {
+            storeId: route.params.storeId,
+            storeName,
+            scanMode: 'dayClose'
+          });
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -723,10 +774,44 @@ const createStyles = (colors: any, colorScheme: 'light' | 'dark' | null | undefi
     fontWeight: 'bold',
     letterSpacing: 1,
   },
+  browseBanner: {
+    backgroundColor: colorScheme === 'dark' ? colors.surface : colors.white + '20',
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: colorScheme === 'dark' ? 1 : 0,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  browseBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 14,
+  },
+  browseBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  browseBannerTextContainer: {
+    flex: 1,
+  },
+  browseBannerTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colorScheme === 'dark' ? colors.textPrimary : colors.white,
+    marginBottom: 2,
+  },
+  browseBannerSubtitle: {
+    fontSize: 12,
+    color: colorScheme === 'dark' ? colors.textSecondary : colors.white,
+    opacity: 0.85,
+  },
   infoBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary + '10',
+    backgroundColor: colors.success + '10',
     padding: 10,
     borderRadius: 8,
     marginTop: 12,

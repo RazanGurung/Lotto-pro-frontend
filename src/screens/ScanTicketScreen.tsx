@@ -39,7 +39,7 @@ const TEST_MODE_FORCE_DIRECTION = false;  // ← Changed to false
 export default function ScanTicketScreen({ navigation, route }: Props) {
   const colors = useTheme();
   const styles = createStyles(colors);
-  const { storeId, storeName } = route.params;
+  const { storeId, storeName, scanMode = 'dayClose' } = route.params;
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
