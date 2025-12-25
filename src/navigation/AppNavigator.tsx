@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -133,6 +133,8 @@ function MainTabNavigator() {
   const colors = colorScheme === 'dark' ? darkTheme : lightTheme;
   const [unreadCount, setUnreadCount] = useState(0);
   const [userType, setUserType] = useState<string | null>(null);
+  const consecutiveFailuresRef = useRef(0);
+  const maxConsecutiveFailures = 3;
 
   useEffect(() => {
     const getUserType = async () => {
@@ -140,11 +142,12 @@ function MainTabNavigator() {
       setUserType(type || 'store_owner');
     };
     getUserType();
-    fetchUnreadCount();
+    // Disabled notification fetching - endpoint mapped to settings
+    // fetchUnreadCount();
 
     // Poll for unread count every 30 seconds
-    const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
+    // const interval = setInterval(fetchUnreadCount, 30000);
+    // return () => clearInterval(interval);
   }, []);
 
   const fetchUnreadCount = async () => {
@@ -154,9 +157,21 @@ function MainTabNavigator() {
         const notificationsData = Array.isArray(result.data) ? result.data : result.data.notifications || [];
         const unread = notificationsData.filter((n: any) => !n.read && !n.is_read).length;
         setUnreadCount(unread);
+        // Reset failure count on success
+        consecutiveFailuresRef.current = 0;
+      } else {
+        // API returned unsuccessful response
+        consecutiveFailuresRef.current++;
       }
     } catch (error) {
-      console.error('Error fetching notification count:', error);
+      consecutiveFailuresRef.current++;
+      // Only log the first few errors to avoid console spam
+      if (consecutiveFailuresRef.current <= maxConsecutiveFailures) {
+        console.error('Error fetching notification count:', error);
+        if (consecutiveFailuresRef.current === maxConsecutiveFailures) {
+          console.warn('Notifications endpoint failing - suppressing further error logs');
+        }
+      }
     }
   };
 

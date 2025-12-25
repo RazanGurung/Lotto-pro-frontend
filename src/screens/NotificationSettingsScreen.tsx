@@ -1,16 +1,21 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { notificationService } from '../services/api';
 
 type Props = {
   navigation: any;
+  route: any;
 };
 
-export default function NotificationSettingsScreen({ navigation }: Props) {
+export default function NotificationSettingsScreen({ navigation, route }: Props) {
   const colors = useTheme();
   const styles = createStyles(colors);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   // Notification toggles
   const [pushNotifications, setPushNotifications] = useState(true);
@@ -27,6 +32,76 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
 
   // Quiet hours
   const [quietHours, setQuietHours] = useState(false);
+
+  // Load settings on mount
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      setLoading(true);
+      const result = await notificationService.getNotificationSettings();
+
+      if (result.success && result.data) {
+        // Handle nested settings object
+        const settings = result.data.settings || result.data;
+        setPushNotifications(settings.push_notifications ?? true);
+        setEmailNotifications(settings.email_notifications ?? true);
+        setSmsNotifications(settings.sms_notifications ?? false);
+        setLowStockAlerts(settings.low_stock_alerts ?? true);
+        setSalesUpdates(settings.sales_updates ?? true);
+        setInventoryAlerts(settings.inventory_alerts ?? true);
+        setSystemUpdates(settings.system_updates ?? true);
+        setWeeklyReports(settings.weekly_reports ?? true);
+        setDailySummary(settings.daily_summary ?? false);
+      }
+    } catch (error) {
+      console.error('Failed to load notification settings:', error);
+      Alert.alert('Error', 'Failed to load settings. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateSettings = async (updates: any) => {
+    try {
+      setSaving(true);
+      const result = await notificationService.updateNotificationSettings(updates);
+
+      if (!result.success) {
+        Alert.alert('Error', 'Failed to save settings. Please try again.');
+      }
+    } catch (error) {
+      console.error('Failed to update notification settings:', error);
+      Alert.alert('Error', 'Failed to save settings. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggle = (field: string, value: boolean, setter: (val: boolean) => void) => {
+    setter(value);
+    updateSettings({ [field]: value });
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Notification Settings</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading settings...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -58,9 +133,10 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
             </View>
             <Switch
               value={pushNotifications}
-              onValueChange={setPushNotifications}
+              onValueChange={(value) => handleToggle('push_notifications', value, setPushNotifications)}
               trackColor={{ false: colors.border, true: colors.primary + '50' }}
               thumbColor={pushNotifications ? colors.primary : colors.textMuted}
+              disabled={saving}
             />
           </View>
 
@@ -74,9 +150,10 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
             </View>
             <Switch
               value={emailNotifications}
-              onValueChange={setEmailNotifications}
+              onValueChange={(value) => handleToggle('email_notifications', value, setEmailNotifications)}
               trackColor={{ false: colors.border, true: colors.primary + '50' }}
               thumbColor={emailNotifications ? colors.primary : colors.textMuted}
+              disabled={saving}
             />
           </View>
 
@@ -90,9 +167,10 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
             </View>
             <Switch
               value={smsNotifications}
-              onValueChange={setSmsNotifications}
+              onValueChange={(value) => handleToggle('sms_notifications', value, setSmsNotifications)}
               trackColor={{ false: colors.border, true: colors.primary + '50' }}
               thumbColor={smsNotifications ? colors.primary : colors.textMuted}
+              disabled={saving}
             />
           </View>
         </View>
@@ -112,9 +190,10 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
             </View>
             <Switch
               value={lowStockAlerts}
-              onValueChange={setLowStockAlerts}
+              onValueChange={(value) => handleToggle('low_stock_alerts', value, setLowStockAlerts)}
               trackColor={{ false: colors.border, true: colors.primary + '50' }}
               thumbColor={lowStockAlerts ? colors.primary : colors.textMuted}
+              disabled={saving}
             />
           </View>
 
@@ -128,9 +207,10 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
             </View>
             <Switch
               value={salesUpdates}
-              onValueChange={setSalesUpdates}
+              onValueChange={(value) => handleToggle('sales_updates', value, setSalesUpdates)}
               trackColor={{ false: colors.border, true: colors.primary + '50' }}
               thumbColor={salesUpdates ? colors.primary : colors.textMuted}
+              disabled={saving}
             />
           </View>
 
@@ -144,9 +224,10 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
             </View>
             <Switch
               value={inventoryAlerts}
-              onValueChange={setInventoryAlerts}
+              onValueChange={(value) => handleToggle('inventory_alerts', value, setInventoryAlerts)}
               trackColor={{ false: colors.border, true: colors.primary + '50' }}
               thumbColor={inventoryAlerts ? colors.primary : colors.textMuted}
+              disabled={saving}
             />
           </View>
 
@@ -160,9 +241,10 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
             </View>
             <Switch
               value={systemUpdates}
-              onValueChange={setSystemUpdates}
+              onValueChange={(value) => handleToggle('system_updates', value, setSystemUpdates)}
               trackColor={{ false: colors.border, true: colors.primary + '50' }}
               thumbColor={systemUpdates ? colors.primary : colors.textMuted}
+              disabled={saving}
             />
           </View>
 
@@ -176,9 +258,10 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
             </View>
             <Switch
               value={weeklyReports}
-              onValueChange={setWeeklyReports}
+              onValueChange={(value) => handleToggle('weekly_reports', value, setWeeklyReports)}
               trackColor={{ false: colors.border, true: colors.primary + '50' }}
               thumbColor={weeklyReports ? colors.primary : colors.textMuted}
+              disabled={saving}
             />
           </View>
 
@@ -192,9 +275,10 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
             </View>
             <Switch
               value={dailySummary}
-              onValueChange={setDailySummary}
+              onValueChange={(value) => handleToggle('daily_summary', value, setDailySummary)}
               trackColor={{ false: colors.border, true: colors.primary + '50' }}
               thumbColor={dailySummary ? colors.primary : colors.textMuted}
+              disabled={saving}
             />
           </View>
         </View>
@@ -236,6 +320,16 @@ const createStyles = (colors: any) => StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: colors.textSecondary,
   },
   header: {
     flexDirection: 'row',

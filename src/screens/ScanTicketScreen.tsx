@@ -316,28 +316,8 @@ export default function ScanTicketScreen({ navigation, route }: Props) {
 
       if (result.success) {
         // Backend successfully processed the barcode
-        const ticketInfo = result.data || {};
-
-        Alert.alert(
-          'Ticket Scanned Successfully',
-          `${ticketInfo.lottery_game_name || 'Lottery Ticket'} added to inventory`,
-          [
-            {
-              text: 'Scan Another',
-              onPress: () => resetScanner(),
-              style: 'cancel'
-            },
-            {
-              text: 'View Inventory',
-              onPress: () => {
-                navigation.replace('StoreLotteryDashboard', {
-                  storeId: parseInt(storeId, 10),
-                  storeName
-                });
-              },
-            },
-          ]
-        );
+        // Automatically reset scanner to continue scanning more tickets
+        resetScanner();
       } else {
         // Backend returned an error - show clean user-friendly message
         const errorMessage = result.error || 'Failed to process barcode. Please try again or enter manually.';

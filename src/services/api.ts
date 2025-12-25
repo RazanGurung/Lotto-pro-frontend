@@ -983,12 +983,11 @@ export const notificationService = {
   },
 
   /**
-   * Get notification settings for a store
-   * @param storeId - Store ID
+   * Get notification settings for the authenticated owner
    */
-  getNotificationSettings: async (storeId: number): Promise<ApiResponse<any>> => {
+  getNotificationSettings: async (): Promise<ApiResponse<any>> => {
     try {
-      return await retryFetch(() => apiRequest(`/settings/store/${storeId}/notifications`));
+      return await retryFetch(() => apiRequest('/settings/notifications'));
     } catch (error: any) {
       return {
         success: false,
@@ -998,16 +997,14 @@ export const notificationService = {
   },
 
   /**
-   * Update notification settings for a store (store owner only)
-   * @param storeId - Store ID
+   * Update notification settings for the authenticated owner
    * @param settings - Notification settings to update
    */
   updateNotificationSettings: async (
-    storeId: number,
     settings: Partial<NotificationSettings>
   ): Promise<ApiResponse<any>> => {
     try {
-      return await apiRequest(`/settings/store/${storeId}/notifications`, {
+      return await apiRequest('/settings/notifications', {
         method: 'PUT',
         body: JSON.stringify(settings),
       });
